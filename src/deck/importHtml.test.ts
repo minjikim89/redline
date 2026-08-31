@@ -177,3 +177,167 @@ describe('importHtml — text fidelity', () => {
     expect(r.deck.title).toBe('Report');
   });
 });
+
+/* ---------- adversarial input ---------- */
+
+describe('importHtml — hostile and malformed files', () => {
+  it('does not read a stylesheet as slide copy', () => {
+    const r = importHtml(page('<h1>Cover</h1>',
+      '<div><style>.card{color:red;background:#fff;padding:12px}</style>The real body copy.</div>'), 'x.html');
+    const text = JSON.stringify(r.deck.slides[1].props);
+    expect(text).not.toMatch(/color:red/);
+    expect(text).toContain('The real body copy.');
+  });
+
+  it('does not read script source as slide copy', () => {
+    const r = importHtml(page('<h1>Cover</h1>',
+      '<h2>A finding</h2><script>var secret = "leak me into the deck"</script>'
+      + '<p>The paragraph that actually belongs on this slide.</p>'), 'x.html');
+    expect(JSON.stringify(r.deck.slides[1].props)).not.toMatch(/leak me/);
+  });
+
+  it('does not fire an inline event handler while parsing', () => {
+    delete (globalThis as any).__importPwn2;
+    importHtml(page('<h1 onclick="globalThis.__importPwn2=1">Cover</h1>',
+      '<img src=x onerror="globalThis.__importPwn2=1"><h2>Heading</h2>'), 'x.html');
+    expect((globalThis as any).__importPwn2).toBeUndefined();
+  });
+
+  it('reads a table row at a time instead of collapsing the whole table', () => {
+    const r = importHtml(page('<h1>Cover</h1>',
+      '<h2>Rules by market</h2><table>'
+      + '<tr><td>United States</td><td>$5M</td><td>Income-based</td></tr>'
+      + '<tr><td>United Kingdom</td><td>None</td><td>Self-certified</td></tr></table>'), 'x.html');
+    const bodies = r.deck.slides[1].props.cards.map((c: any) => c.body);
+    expect(bodies).toContain('United States $5M Income-based');
+    expect(bodies).toContain('United Kingdom None Self-certified');
+  });
+
+  it('does not claim a section has no body text when it is a list of short bullets', () => {
+    const r = importHtml(page('<h1>Cover</h1>',
+      '<h2>What moved</h2><ul><li>Revenue up 12%</li><li>Churn down 3pt</li><li>NPS flat</li></ul>'), 'x.html');
+    const bodies = r.deck.slides[1].props.cards.map((c: any) => c.body);
+    expect(bodies).toEqual(['Revenue up 12%', 'Churn down 3pt', 'NPS flat']);
+  });
+
+  it('keeps text that sits loose beside a block child', () => {
+    const r = importHtml(page('<h1>Cover</h1>',
+      '<div>An introductory line<p>And a paragraph that follows it inside the same box.</p></div>'), 'x.html');
+    expect(JSON.stringify(r.deck.slides[1].props)).toContain('An introductory line');
+  });
+
+  it('reads a document whose body has no element children at all', () => {
+    const r = importHtml('not html, just a line of text that somebody dropped on the page', 'notes.txt');
+    expect(r.warnings.join(' ')).toMatch(/No <section>/);
+    expect(JSON.stringify(r.deck.slides[0].props)).toContain('just a line of text');
+  });
+
+  it('imports a reveal-style nested stack once, not twice', () => {
+    const r = importHtml(
+      '<html><head><title>R</title></head><body><div class="slides">'
+      + '<section><section><h2>Vertical A</h2><p>Body copy long enough to be a paragraph.</p></section>'
+      + '<section><h2>Vertical B</h2><p>Another body paragraph that runs on a while.</p></section></section>'
+      + '</div></body></html>', 'x.html');
+    expect(r.sections).toBe(2);
+    expect(r.deck.slides.map(s => s.props.title)).toEqual(['Vertical A', 'Vertical B']);
+  });
+
+  it('keeps a wrapper section that has copy of its own', () => {
+    const r = importHtml(
+      '<html><body><section><h2>Outer heading</h2><p>Copy that belongs to the wrapper itself.</p>'
+      + '<section><h2>Inner heading</h2><p>Copy that belongs to the inner section.</p></section>'
+      + '</section></body></html>', 'x.html');
+    expect(r.sections).toBe(2);
+    expect(JSON.stringify(r.deck.slides.map(s => s.props))).toContain('Outer heading');
+  });
+
+  it('says so when it stops reading rather than dropping sections silently', () => {
+    const r = importHtml(page(...Array.from({ length: 500 }, (_, i) => `<h2>Slide ${i}</h2>`)), 'x.html');
+    expect(r.sections).toBe(500);
+    expect(r.deck.slides).toHaveLength(40);
+    expect(r.warnings.join(' ')).toMatch(/first 40 of 500/);
+  });
+
+  it('reads a large document in reasonable time', () => {
+    const many = Array.from({ length: 6000 },
+      (_, i) => `<p>Paragraph ${i} with enough filler text to stand as a real block of copy.</p>`).join('');
+    const t0 = Date.now();
+    importHtml(`<html><head><title>Big</title></head><body><section>${many}</section></body></html>`, 'big.html');
+    expect(Date.now() - t0).toBeLessThan(5000);
+  });
+});
+
+describe('importHtml — text the parser must not misread', () => {
+  it('does not read a script without letter case as an all-caps kicker', () => {
+    const r = importHtml(page('<h1>표지</h1>',
+      '<h2>AI 도입 전략</h2><p>국내 기업의 인공지능 도입은 빠르게 확산되었습니다.</p>'), 'x.html');
+    expect(r.deck.slides[1].props.kicker).toBe('');
+    expect(r.deck.slides[1].props.title).toBe('AI 도입 전략');
+  });
+
+  it('still recognises a genuine all-caps kicker', () => {
+    const r = importHtml(page('<h1>Cover</h1>',
+      '<div>STAGE 2 · CONVERSION</div><h2>From Watching to Buying</h2>'
+      + '<p>A paragraph of body copy long enough to be read as one.</p>'), 'x.html');
+    expect(r.deck.slides[1].props.kicker).toBe('STAGE 2 · CONVERSION');
+  });
+
+  it('never prints the same line as both kicker and heading', () => {
+    const r = importHtml(page('<h1>THE COVER</h1>',
+      '<h2>EVERYTHING HERE IS SHOUTING</h2><p>THIS BODY COPY IS ALSO IN CAPITALS.</p>'), 'x.html');
+    for (const s of r.deck.slides) {
+      const kick = s.props.eyebrow ?? s.props.kicker;
+      if (kick && kick !== 'Imported deck') expect(kick).not.toBe(s.props.title);
+    }
+  });
+
+  it('leaves right-to-left text intact', () => {
+    const r = importHtml(page('<h1>تقرير السوق</h1>',
+      '<h2>نمو السوق</h2><p>ينمو سوق التمويل الجماعي بسرعة كبيرة في السنوات الأخيرة.</p>'), 'x.html');
+    expect(r.deck.slides[0].props.title).toBe('تقرير السوق');
+    expect(r.deck.slides[1].props.title).toBe('نمو السوق');
+  });
+
+  it('keeps entities and emoji as the characters they decode to', () => {
+    const r = importHtml(page('<h1>Cover &amp; Contents</h1>',
+      '<h2>Growth &gt; 20% &mdash; 🚀 momentum</h2><p>Q&amp;A follows the deep dive 🎬 later today.</p>'), 'x.html');
+    expect(r.deck.slides[0].props.title).toBe('Cover & Contents');
+    expect(r.deck.slides[1].props.title).toBe('Growth > 20% — 🚀 momentum');
+    expect(r.deck.slides[1].props.cards[0].body).toContain('Q&A');
+  });
+
+  it('does not blow a bare year up into a headline figure', () => {
+    const r = importHtml(page('<h1>Cover</h1>',
+      '<h2>National divergence</h2><p>The four rulebooks diverged after the Act took effect.</p><div>2024</div>'), 'x.html');
+    expect(r.deck.slides[1].type).toBe('cards');
+  });
+
+  it('keeps the only line on a section rather than inventing a placeholder', () => {
+    const r = importHtml(page('<div>42</div>'), 'x.html');
+    expect(r.deck.slides[0].props.title).toBe('42');
+  });
+
+  it('does not let an svg chart title become the deck title', () => {
+    const r = importHtml(
+      '<html><head></head><body><section><svg><title>Bar chart</title></svg><h1>Real Heading</h1></section></body></html>',
+      'MyDeck.html');
+    expect(r.deck.title).toBe('MyDeck');
+  });
+
+  it('keeps every prop inside the length its own schema declares', () => {
+    const long = 'word '.repeat(400);
+    const r = importHtml(page(`<h1>${long}</h1>`, `<h2>${long}</h2><p>${long}</p>`), 'x.html');
+    expect(r.deck.slides[0].props.title.length).toBeLessThanOrEqual(120);
+    expect(r.deck.slides[1].props.title.length).toBeLessThanOrEqual(200);
+    for (const c of r.deck.slides[1].props.cards) {
+      expect(c.body.length).toBeLessThanOrEqual(300);
+      expect(c.head.length).toBeLessThanOrEqual(60);
+    }
+  });
+
+  it('survives runaway nesting instead of overflowing the stack', () => {
+    let inner = '<p>The body copy buried at the bottom of the well.</p>';
+    for (let i = 0; i < 400; i++) inner = `<div>${inner}</div>`;
+    expect(() => importHtml(page('<h1>Cover</h1>', inner), 'x.html')).not.toThrow();
+  });
+});

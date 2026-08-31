@@ -18,7 +18,42 @@ export interface ImportReport {
   warnings: string[];
 }
 
+/** More than this and the deck stops being reviewable; the report says so. */
+const MAX_SLIDES = 40;
+/** Runaway nesting is a parser bomb, not a layout. Read the rest as one block. */
+const MAX_DEPTH = 120;
+
 const clean = (s: string) => s.replace(/\s+/g, ' ').trim();
+
+/**
+ * The registry's propSchema is the agent's contract, and it carries maxLength.
+ * An importer that emits a 30KB title hands the agent props its own tools would
+ * reject — and hands the artboard a line no container can hold.
+ */
+const cap = (s: unknown, n: number) => {
+  const t = String(s ?? '');
+  return t.length <= n ? t : `${t.slice(0, n - 1).trimEnd()}…`;
+};
+
+/**
+ * Elements that carry machinery rather than copy. Their text is stylesheet or
+ * program source, and an <svg> chart's axis ticks are labels for marks that do
+ * not survive the import — pulling either in floods the slide with noise.
+ */
+const SKIP = new Set(['SCRIPT', 'STYLE', 'NOSCRIPT', 'TEMPLATE', 'HEAD', 'SVG', 'CANVAS', 'IFRAME']);
+
+/**
+ * What separates one block of copy from the next. A <tr> is on the list but
+ * <td> is not, so a table row reads as one line rather than the whole table
+ * collapsing into a single run-on paragraph.
+ */
+const BLOCK_TAGS = new Set([
+  'H1', 'H2', 'H3', 'H4', 'H5', 'H6', 'P', 'DIV', 'LI', 'DT', 'DD',
+  'SECTION', 'ARTICLE', 'ASIDE', 'HEADER', 'FOOTER', 'MAIN', 'NAV',
+  'UL', 'OL', 'DL', 'TABLE', 'THEAD', 'TBODY', 'TFOOT', 'TR', 'CAPTION',
+  'FIGURE', 'FIGCAPTION', 'BLOCKQUOTE', 'PRE', 'ADDRESS', 'BODY', 'DETAILS', 'SUMMARY',
+]);
+const BLOCK_SEL = Array.from(BLOCK_TAGS).join(',').toLowerCase();
 
 /**
  * textContent glues child nodes together with nothing between them, so a
@@ -30,75 +65,145 @@ function readText(el: Element): string {
   el.childNodes.forEach(n => {
     if (n.nodeType === 3) out += n.nodeValue ?? '';
     else if (n.nodeType === 1) {
-      const tag = (n as Element).tagName.toLowerCase();
-      if (tag === 'br') { out += ' '; return; }
+      const tag = (n as Element).tagName.toUpperCase();
+      if (SKIP.has(tag)) return;
+      if (tag === 'BR') { out += ' '; return; }
       out += ` ${readText(n as Element)} `;
     }
   });
-  return clean(out);
+  // The padding above is this function's own doing, so undo it where it landed
+  // in front of closing punctuation: "<strong>Streaming</strong>. Omdia" must
+  // not come back as "Streaming . Omdia".
+  return clean(out).replace(/\s+([.,)\]])/g, '$1');
 }
-const looksSource = (s: string) => /^(source|sources|출처)\b/i.test(s);
-
-/** A standalone number, with an optional currency mark and magnitude suffix. */
-const bigFigure = (s: string) =>
-  /^[-−+]?[$€£¥₩]?[\d][\d.,]*\s?[BMKTbn%×x]?$/.test(s.replace(/\s+/g, ' ').trim());
+/**
+ * A citation, not the word on its own. A references slide is often kickered
+ * "Sources", and claiming that label as the slide's source line spends the
+ * source slot on a heading and drops the actual citation into the body.
+ */
+const looksSource = (s: string) => /^(sources?|출처)\b[\s:：.–—-]*\S/i.test(s);
 
 /**
- * An all-caps label. A bare figure like "$1.4M" is technically uppercase, so it
- * has to be excluded here — otherwise the headline number gets consumed as a
- * kicker and the slide loses the thing it exists to show.
+ * A line the document itself labelled as its source. Reading the class is the
+ * same kind of coupling the section lookup already accepts: it is the author's
+ * own declaration, not an inference about what the line means. Sample decks
+ * cite in three different house styles, and only one of them starts with the
+ * word "Source" — without this the other two come back as body copy.
  */
-const isShout = (s: string) =>
-  s.length < 90 && s === s.toUpperCase() && /[A-Z]/.test(s) && !bigFigure(s);
+const SOURCE_CLASS = /^(src|source|sources|citation|cite|footnote)$/i;
+const marksSource = (el: Element) =>
+  el.tagName === 'CITE'
+  || Array.from(el.classList ?? []).some(c => SOURCE_CLASS.test(c));
 
-interface Read { blocks: string[]; headings: string[] }
+/** A standalone number, with an optional currency mark and magnitude suffix. */
+const bigFigure = (s: string) => {
+  const t = s.replace(/\s+/g, ' ').trim();
+  // A bare year is a label, not a headline. "2024" as a 300px figure is the
+  // kind of confident wrong guess this parser is supposed to refuse to make.
+  if (/^(1[89]|20)\d{2}$/.test(t)) return false;
+  return /^[-−+]?[$€£¥₩]?[\d][\d.,]*\s?[BMKTbn%×x]?$/.test(t);
+};
+
+/**
+ * An all-caps label. Two things have to be excluded. A bare figure like "$1.4M"
+ * is technically uppercase, so it would eat the number the slide exists to
+ * show. And a script without letter case — Korean, Japanese, Arabic — is
+ * *always* equal to its own uppercase, so "AI 도입 전략" would read as a shout.
+ * Only a line whose letters are mostly cased, and all upper, is shouting.
+ */
+const isShout = (s: string) => {
+  if (s.length >= 90 || bigFigure(s)) return false;
+  let letters = 0;
+  let cased = 0;
+  for (const c of s) {
+    if (c.toLowerCase() === c.toUpperCase()) {
+      // no case distinction: a letter only if it is not punctuation or a digit
+      if (/[\p{L}\p{M}]/u.test(c)) letters++;
+      continue;
+    }
+    if (c !== c.toUpperCase()) return false;   // a lowercase letter: not a shout
+    letters++; cased++;
+  }
+  return cased >= 2 && cased >= letters * 0.6;
+};
+
+interface Read { blocks: string[]; headings: string[]; sources: Set<string> }
 
 /**
  * Leaf text, in document order, plus whatever the document itself called a
  * heading. Honouring h1–h4 matters: a real heading can be shorter than the
  * standfirst under it, so length alone picks the wrong line.
+ *
+ * The walk is linear in the size of the section. It used to compare every leaf
+ * against every leaf already claimed, which turned a large export into a frozen
+ * tab rather than a slow one.
  */
-/** Only these break a block apart. Inline children stay part of their parent. */
-const BLOCK = 'h1,h2,h3,h4,p,div,li,dt,dd,section,article,ul,ol,dl,table';
-
 function textBlocks(root: Element): Read {
   const blocks: string[] = [];
   const headings: string[] = [];
-  const claimed: Element[] = [];
+  const sources = new Set<string>();
+  const seen = new Set<string>();
 
-  root.querySelectorAll(`${BLOCK},span,strong`).forEach(el => {
-    if (el.querySelector(BLOCK)) return;                       // not a leaf block
-    if (claimed.some(c => c.contains(el))) return;             // parent already took it
-    const t = readText(el);
-    if (!t || t.length < 2) return;
-    claimed.push(el);
-    if (blocks.includes(t)) return;
+  const push = (raw: string, el?: Element) => {
+    const t = clean(raw);
+    if (t.length < 2 || seen.has(t)) return;
+    seen.add(t);
     blocks.push(t);
-    if (/^h[1-4]$/i.test(el.tagName)) headings.push(t);
-  });
-  return { blocks, headings };
+    if (!el) return;
+    if (/^H[1-4]$/.test(el.tagName.toUpperCase())) headings.push(t);
+    if (marksSource(el)) sources.add(t);
+  };
+
+  const walk = (el: Element, depth: number) => {
+    let run = '';
+    el.childNodes.forEach(n => {
+      if (n.nodeType === 3) { run += n.nodeValue ?? ''; return; }
+      if (n.nodeType !== 1) return;
+      const e = n as Element;
+      const tag = e.tagName.toUpperCase();
+      if (SKIP.has(tag)) return;
+      const nested = depth < MAX_DEPTH && e.querySelector(BLOCK_SEL) !== null;
+      if (!BLOCK_TAGS.has(tag) && !nested) { run += ` ${readText(e)} `; return; }
+      // Text sitting loose beside a block child is still copy — "<div>Intro
+      // <p>para</p></div>" must not lose "Intro".
+      push(run); run = '';
+      if (nested) walk(e, depth + 1);
+      else push(readText(e), e);
+    });
+    push(run);
+  };
+
+  walk(root, 0);
+  return { blocks, headings, sources };
 }
 
 function classify(read: Read, index: number): { type: SlideType; props: any; tone?: any } {
-  const { blocks, headings } = read;
+  const { blocks, headings, sources } = read;
+  const isSource = (b: string) => looksSource(b) || sources.has(b);
   // Claim in order of certainty: a bare figure, then a source line, then an
   // all-caps label, then the longest remaining line as the heading.
   const figure = blocks.find(bigFigure);
-  const source = blocks.find(looksSource);
-  const kicker = blocks.find(b => isShout(b) && b !== source);
+  const source = blocks.find(isSource);
+  const shout = blocks.find(b => isShout(b) && b !== source);
   const heading = headings.find(h => h !== figure && h !== source)
     ?? blocks.find(b => b.length > 12 && !isShout(b) && b !== source && b !== figure)
-    ?? blocks.find(b => b !== figure && b !== source && b !== kicker)
+    ?? blocks.find(b => b !== figure && b !== source && b !== shout)
+    ?? (blocks.length === 1 ? blocks[0] : undefined)
     ?? `Slide ${index + 1}`;
+  // The document is allowed to use one line as both label and heading. Showing
+  // it twice on the slide is this parser's mistake, not the author's.
+  const kicker = shout === heading ? undefined : shout;
   const rest = blocks.filter(b => b !== heading && b !== kicker && b !== source && b !== figure);
 
   if (index === 0) {
     return {
       type: 'cover', tone: 'dark',
       props: {
-        eyebrow: kicker ?? 'Imported deck', title: heading,
-        subtitle: rest.find(b => b.length > 40) ?? '',
-        meta: rest.filter(isShout).slice(0, 2),
+        eyebrow: cap(kicker ?? 'Imported deck', 80), title: cap(heading, 120),
+        // A cover with one short line under it still has that line. Dropping
+        // everything under 40 characters silently emptied the slide.
+        subtitle: cap(rest.find(b => b.length > 40) ?? rest.find(b => !isShout(b)) ?? '', 300),
+        meta: rest.filter(isShout).slice(0, 2).map(m => cap(m, 60)),
       },
     };
   }
@@ -107,32 +212,44 @@ function classify(read: Read, index: number): { type: SlideType; props: any; ton
     return {
       type: 'hero', tone: 'accent',
       props: {
-        eyebrow: kicker ?? heading, figure, tail: '',
-        body: rest.find(b => b.length > 40) ?? '',
-        footnote: source ?? '',
+        eyebrow: cap(kicker ?? (heading === figure ? '' : heading), 120),
+        figure: cap(figure, 24), tail: '',
+        body: cap(rest.find(b => b.length > 40) ?? '', 400),
+        footnote: cap(source ?? '', 160),
       },
     };
   }
-  if (blocks.filter(looksSource).length > 1 || /reference|sources/i.test(heading)) {
+  if (blocks.filter(isSource).length > 1 || /reference|sources/i.test(heading)) {
     const pairs = rest.filter(b => b.length > 20);
     return {
       type: 'refs',
       props: {
-        kicker: kicker ?? 'Sources', title: heading,
-        groups: pairs.slice(0, 10).map(t => ({ topic: t.split(/[.:]/)[0].slice(0, 40), text: t })),
+        kicker: cap(kicker ?? 'Sources', 60), title: cap(heading, 200),
+        source: source === undefined ? undefined : cap(source, 300),
+        groups: pairs.slice(0, 10).map(t => ({ topic: t.split(/[.:]/)[0].slice(0, 40), text: cap(t, 400) })),
       },
     };
   }
   // Default: prose becomes cards. Always renders, never misrepresents the source.
-  const bodies = [figure, ...rest].filter((b): b is string => !!b && b.length > 25).slice(0, 4);
+  // Prefer full sentences, but a slide of short bullets has body text and saying
+  // otherwise is a lie the reader cannot check against the file they just gave us.
+  const carried = [figure, ...rest].filter((b): b is string => !!b);
+  const long = carried.filter(b => b.length > 25);
+  const bodies = (long.length ? long : carried).slice(0, 4);
+  // Say which kind of empty this is. "No body text" on a section whose one line
+  // is already the heading reads as a parser failure the reader cannot check.
+  const empty = blocks.length
+    ? '(this section had a heading and no body text)'
+    : '(no readable text found in this section)';
   return {
     type: 'cards',
     props: {
-      kicker: kicker ?? '', title: heading, source,
-      cards: (bodies.length ? bodies : ['(no body text found in this section)']).map((b, i) => ({
+      kicker: cap(kicker ?? '', 60), title: cap(heading, 200),
+      source: source === undefined ? undefined : cap(source, 300),
+      cards: (bodies.length ? bodies : [empty]).map((b, i) => ({
         index: String(i + 1).padStart(2, '0'),
-        head: b.split(/[.;]/)[0].slice(0, 60),
-        body: b,
+        head: cap(b.split(/[.;]/)[0], 60),
+        body: cap(b, 300),
       })),
     },
   };
@@ -142,15 +259,34 @@ export function importHtml(html: string, name: string): ImportReport {
   const doc = new DOMParser().parseFromString(html, 'text/html');
   const warnings: string[] = [];
 
-  let sections = Array.from(doc.querySelectorAll('section'));
-  if (!sections.length) sections = Array.from(doc.querySelectorAll('.slide, [data-screen-label]'));
+  let sections: Element[] = Array.from(doc.querySelectorAll('section'));
+  // A <section> holding other sections is a container — reveal.js stacks
+  // verticals that way. Reading both levels imports every slide twice. Only
+  // drop the wrapper when it has no copy of its own, so a document whose tags
+  // merely failed to close does not lose the text that was stranded outside.
+  if (sections.length > 1) {
+    const kept = sections.filter(s => {
+      if (!s.querySelector('section')) return true;
+      const bare = s.cloneNode(true) as Element;
+      bare.querySelectorAll('section').forEach(k => k.remove());
+      return clean(bare.textContent ?? '').length > 0;
+    });
+    if (kept.length) sections = kept;
+  }
+  if (sections.length < 2) {
+    const marked = Array.from(doc.querySelectorAll('.slide, [data-screen-label]'));
+    if (marked.length > sections.length) sections = marked;
+  }
   if (!sections.length) {
     warnings.push('No <section> or .slide elements found — the whole document was read as one slide.');
     sections = [doc.body];
   }
+  if (sections.length > MAX_SLIDES) {
+    warnings.push(`Read the first ${MAX_SLIDES} of ${sections.length} sections; the rest were left out.`);
+  }
 
   const recognised: Record<string, number> = {};
-  const slides: Slide[] = sections.slice(0, 40).map((sec, i) => {
+  const slides: Slide[] = sections.slice(0, MAX_SLIDES).map((sec, i) => {
     const read = textBlocks(sec);
     const { type, props, tone } = classify(read, i);
     recognised[type] = (recognised[type] ?? 0) + 1;
@@ -158,7 +294,10 @@ export function importHtml(html: string, name: string): ImportReport {
     return { id: `i${String(i + 1).padStart(2, '0')}`, type, tone, props } as Slide;
   });
 
-  const title = clean(doc.querySelector('title')?.textContent ?? '')
+  // querySelector('title') also matches an <svg><title>, so a chart's
+  // accessible name would win over the document's own.
+  const titleEl = Array.from(doc.querySelectorAll('title')).find(t => !t.closest('svg'));
+  const title = clean(titleEl?.textContent ?? '')
     || name.replace(/(\.dc)?\.html?$/i, '');
 
   return {

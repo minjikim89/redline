@@ -14,6 +14,40 @@ export type Mode = 'edit' | 'draw' | 'move';
 
 interface Drag { id: string; part: 'label' | 'stroke'; from: Pt; dx: number; dy: number }
 
+/**
+ * A press in edit mode that lands on text belongs to the text: focus it and put
+ * the caret where the pointer is. Returns whether the press was claimed.
+ *
+ * Caret hit-testing follows `pointer-events`, so with the ink surface lying over
+ * the artboard `caretRangeFromPoint` resolves against the surface and hands back
+ * a position outside the text. The probe is taken with the surface lifted.
+ */
+export function giveToText(surface: SVGElement, clientX: number, clientY: number): boolean {
+  const under = document.elementsFromPoint(clientX, clientY)
+    .find(el => (el as HTMLElement).isContentEditable) as HTMLElement | undefined;
+  if (!under) return false;
+  under.focus();
+
+  const was = surface.style.pointerEvents;
+  surface.style.pointerEvents = 'none';
+  const d = document as any;
+  const r: Range | null = d.caretRangeFromPoint?.(clientX, clientY)
+    ?? (() => {
+      const pos = d.caretPositionFromPoint?.(clientX, clientY);
+      if (!pos) return null;
+      const rr = document.createRange();
+      rr.setStart(pos.offsetNode, pos.offset); rr.collapse(true);
+      return rr;
+    })();
+  surface.style.pointerEvents = was;
+
+  // Only honour a caret that actually landed inside the text we focused.
+  if (r && under.contains(r.startContainer)) {
+    const sel = getSelection(); sel?.removeAllRanges(); sel?.addRange(r);
+  }
+  return true;
+}
+
 export function InkLayer({ slideId, mode, canvasRef, slideRef, annotations, selected, onDone }: {
   slideId: string;
   mode: Mode;
@@ -52,23 +86,12 @@ export function InkLayer({ slideId, mode, canvasRef, slideRef, annotations, sele
   const down = (e: React.PointerEvent) => {
     if (draft || mode === 'move') return;
 
-    if (mode === 'edit') {
-      const under = document.elementsFromPoint(e.clientX, e.clientY)
-        .find(el => (el as HTMLElement).isContentEditable) as HTMLElement | undefined;
-      if (under) {
-        under.focus();
-        const d = document as any;
-        const r = d.caretRangeFromPoint?.(e.clientX, e.clientY)
-          ?? (() => {
-            const pos = d.caretPositionFromPoint?.(e.clientX, e.clientY);
-            if (!pos) return null;
-            const rr = document.createRange();
-            rr.setStart(pos.offsetNode, pos.offset); rr.collapse(true);
-            return rr;
-          })();
-        if (r) { const sel = getSelection(); sel?.removeAllRanges(); sel?.addRange(r); }
-        return;                       // the press belonged to the text
-      }
+    if (mode === 'edit' && giveToText(e.currentTarget as SVGElement, e.clientX, e.clientY)) {
+      // The overlay is not focusable, so the browser's own mousedown would move
+      // focus straight back to <body> and blur the text we just gave the caret
+      // to. Claiming the press is what keeps the caret where the person put it.
+      e.preventDefault();
+      return;                         // the press belonged to the text
     }
 
     store.select(null);
@@ -217,6 +240,11 @@ export function InkLayer({ slideId, mode, canvasRef, slideRef, annotations, sele
               if (startDrag(e, a.id, 'label')) return;
               e.stopPropagation(); store.select(on ? null : a.id);
             }}
+            /* The note sits outside the ink surface, and in move mode that
+               surface is pointer-transparent — so a label drag has to be
+               followed here or it never moves. */
+            onPointerMove={move}
+            onPointerUp={finish}
             onPointerEnter={() => setHover(a.id)}
             onPointerLeave={() => setHover(h => (h === a.id ? null : h))}>
             <span className="scribble-kind">

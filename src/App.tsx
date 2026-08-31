@@ -2,6 +2,7 @@ import { useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalS
 import { registry } from './deck/registry';
 import { EditCtx } from './deck/slideKit';
 import { Inspector } from './deck/Inspector';
+import { clampSlideIndex, slideIndexFromQuery } from './deck/nav';
 import { Start } from './Start';
 import { exportHtml } from './deck/exportHtml';
 import { ARTBOARD } from './deck/theme';
@@ -27,10 +28,7 @@ function ConflictRing({ elementId }: { elementId: string }) {
 
 export default function App() {
   const s = useSyncExternalStore(store.subscribe, store.getState);
-  const [current, setCurrent] = useState(() => {
-    const n = Number(new URLSearchParams(location.search).get('slide'));
-    return Number.isFinite(n) && n > 0 ? n - 1 : 0;
-  });
+  const [current, setCurrent] = useState(() => slideIndexFromQuery(location.search));
   const [mode, setMode] = useState<Mode>('edit');
   const [tools, setTools] = useState<string[]>([]);
   const [supported, setSupported] = useState<boolean | null>(null);
@@ -50,7 +48,11 @@ export default function App() {
   const canvasRef = useRef<HTMLDivElement>(null);
   const slideRef = useRef<HTMLDivElement>(null);
 
-  const slide = s.deck.slides[Math.min(current, s.deck.slides.length - 1)];
+  // `?slide=` is hand-editable and a stale index survives a deck swap, so the
+  // index is clamped everywhere it is read — the rail and the artboard must
+  // never disagree about which slide is up.
+  const idx = clampSlideIndex(current, s.deck.slides.length);
+  const slide = s.deck.slides[idx];
   const Comp = registry[slide.type].component;
 
   /* The artboard renders at its authored 1920×1080 and is scaled to fit, so the
@@ -113,11 +115,15 @@ export default function App() {
     });
   }, [s.annotations]);
 
-  // A fix reflows the slide; marks re-anchor off the model, so re-measure after paint.
+  // A fix reflows the slide; marks re-anchor off the model, so re-measure after
+  // paint. `scale` is in here too: marks are laid out from the rects read during
+  // render, which are still the PREVIOUS layout when the scale itself changed —
+  // without a pass after the commit every zoom and every resize leaves the ink
+  // one step behind its element.
   useEffect(() => {
     const id = requestAnimationFrame(() => setTick(t => t + 1));
     return () => cancelAnimationFrame(id);
-  }, [s.deck, current]);
+  }, [s.deck, idx, scale]);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -135,8 +141,8 @@ export default function App() {
       if (e.key === '0') setZoom(1);
       if (e.key === 'v' || e.key === 'V') setMode('move');
       if (e.key === 'p' || e.key === 'P') setMode('draw');
-      if (e.key === 'ArrowRight') setCurrent(c => Math.min(c + 1, s.deck.slides.length - 1));
-      if (e.key === 'ArrowLeft') setCurrent(c => Math.max(c - 1, 0));
+      if (e.key === 'ArrowRight') setCurrent(c => clampSlideIndex(c + 1, s.deck.slides.length));
+      if (e.key === 'ArrowLeft') setCurrent(c => clampSlideIndex(c - 1, s.deck.slides.length));
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
@@ -164,8 +170,8 @@ export default function App() {
       await runScript(steps, (_i, st) => {
         setSaying(st.say);
         if (st.slideId) {
-          const idx = store.getState().deck.slides.findIndex(x => x.id === st.slideId);
-          if (idx >= 0) setCurrent(idx);
+          const at = store.getState().deck.slides.findIndex(x => x.id === st.slideId);
+          if (at >= 0) setCurrent(at);
         }
       }, ac.signal);
     } catch { /* stopped */ }
@@ -190,7 +196,7 @@ export default function App() {
         <ol className="thumbs">
           {s.deck.slides.map((sl, i) => (
             <li key={sl.id}>
-              <button className={i === current ? 'thumb on' : 'thumb'} onClick={() => setCurrent(i)}>
+              <button className={i === idx ? 'thumb on' : 'thumb'} onClick={() => setCurrent(i)}>
                 <span className="tn">{i + 1}</span>
                 <span className="tt">{sl.props.title ?? sl.props.eyebrow ?? 'Cover'}</span>
                 {perSlide.get(sl.id) && <span className="tp">{perSlide.get(sl.id)}</span>}

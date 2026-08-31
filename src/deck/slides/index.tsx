@@ -268,7 +268,7 @@ export function TimelineSlide({ kicker, accent, title, events, source }: any) {
 }
 
 /* ---------------- 12 references ---------------- */
-export function RefsSlide({ kicker, accent, title, groups, note }: any) {
+export function RefsSlide({ kicker, accent, title, groups, source }: any) {
   const half = Math.ceil((groups?.length ?? 0) / 2);
   const col = (list: any[], side: string, offset: number) => (
     <div className="refs-col">
@@ -284,7 +284,7 @@ export function RefsSlide({ kicker, accent, title, groups, note }: any) {
     </div>
   );
   return (
-    <Sheet kicker={kicker} accent={accent} title={title} source={note}>
+    <Sheet kicker={kicker} accent={accent} title={title} source={source}>
       <div className="refs">
         {col(groups?.slice(0, half) ?? [], 'left', 0)}
         {col(groups?.slice(half) ?? [], 'right', half)}

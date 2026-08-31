@@ -1,0 +1,10 @@
+import { JSDOM } from 'jsdom';
+const dom = new JSDOM();
+(globalThis as any).DOMParser = dom.window.DOMParser;
+const { importHtml } = await import('../src/deck/importHtml');
+const filler = 'Filler sentence carrying enough words to be considered a real paragraph of body copy on a slide. '.repeat(4);
+const many = Array.from({length:52000},(_,i)=>`<p>Paragraph ${i}. ${filler}</p>`).join('');
+const html = `<!doctype html><html><head><title>Huge</title></head><body><section>${many}</section></body></html>`;
+console.log('size', (html.length/1024/1024).toFixed(1),'MB');
+const t0=Date.now(); const r = importHtml(html,'huge.html');
+console.log('import', Date.now()-t0,'ms  slides',r.deck.slides.length);

@@ -35,9 +35,15 @@ function body(s: Slide): string {
     case 'hero':
       return `<div class="figure">${esc(p.figure)}</div>${para(p.body)}`;
     case 'cards':
-      return (p.cards ?? []).map((c: any) =>
-        `<div class="card"><div class="eyebrow">${esc(c.index)}</div><h3>${esc(c.head)}</h3>${para(c.body)}</div>`)
-        .join('') + (p.footnote ? para(p.footnote) : '');
+      // A head that is only the first clause of the body beneath it is not a
+      // heading, it is the same sentence twice. Writing it out makes the file
+      // worse to read and makes re-import split one card into two.
+      return (p.cards ?? []).map((c: any) => {
+        const head = String(c.head ?? '').replace(/…$/, '');
+        const dup = !!head && String(c.body ?? '').startsWith(head);
+        return `<div class="card"><div class="eyebrow">${esc(c.index)}</div>`
+          + (dup ? '' : `<h3>${esc(c.head)}</h3>`) + `${para(c.body)}</div>`;
+      }).join('') + (p.footnote ? para(p.footnote) : '');
     case 'barsPair':
       return bars(p.left) + bars(p.right);
     case 'flow':
@@ -61,8 +67,15 @@ function body(s: Slide): string {
       return (p.events ?? []).map((e: any) =>
         `<div class="row"><span>${esc(e.year)}</span><span>${esc(e.text)}</span></div>`).join('');
     case 'refs':
-      return (p.groups ?? []).map((g: any) =>
-        `<p><strong>${esc(g.topic)}</strong> ${esc(g.text)}</p>`).join('');
+      // The topic is normally the opening words of the text. Emitting both
+      // prepends it a second time, and every further round trip prepends it
+      // again — "Streaming" becomes "Streaming Streaming Streaming".
+      return (p.groups ?? []).map((g: any) => {
+        const topic = String(g.topic ?? ''), text = String(g.text ?? '');
+        return topic && text.startsWith(topic)
+          ? `<p><strong>${esc(topic)}</strong>${esc(text.slice(topic.length))}</p>`
+          : `<p><strong>${esc(topic)}</strong> ${esc(text)}</p>`;
+      }).join('');
     default:
       return '';
   }

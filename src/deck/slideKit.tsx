@@ -6,6 +6,12 @@ export const EditCtx = createContext<{ slideId: string; editing: boolean }>({
   slideId: '', editing: false,
 });
 
+/** Read a dotted path off a slide's props, for putting a refused edit back. */
+export function valueAtPath(props: unknown, path: string): string {
+  const v = path.split('.').reduce<any>((o, k) => (o == null ? o : o[k]), props);
+  return v == null || typeof v === 'object' ? '' : String(v);
+}
+
 /**
  * A region an annotation can anchor to. Give it a `path` and it also becomes
  * directly editable by the person, writing through the same store the agent's
@@ -22,8 +28,14 @@ export function A({ id, label, path, numeric, children, className, style }: {
   const commit = () => {
     const raw = ref.current?.innerText.replace(/\n+$/, '').trim() ?? '';
     if (numeric) {
-      const n = Number(raw.replace(/[^0-9.\-]/g, ''));
-      if (!Number.isFinite(n)) { ref.current!.innerText = String(store.getSlide(slideId)?.props ?? ''); return; }
+      const digits = raw.replace(/[^0-9.\-]/g, '');
+      const n = Number(digits);
+      // Anything that is not a number is refused, and the field goes back to
+      // what the model holds — a typo must never land in a figure as 0 or NaN.
+      if (!/[0-9]/.test(digits) || !Number.isFinite(n)) {
+        ref.current!.innerText = valueAtPath(store.getSlide(slideId)?.props, path!);
+        return;
+      }
       store.setByPath(slideId, path!, n);
       return;
     }

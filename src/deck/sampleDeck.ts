@@ -17,13 +17,13 @@ export const sampleDeck: Deck = {
   title: 'From Screen to Cart',
   theme: defaultTheme,
   slides: [
-    { id: 's01', type: 'title', props: {
+    { id: 's01', tone: 'dark', type: 'title', props: {
       title: 'How Korean Content Became a Global Product Engine',
       subtitle: 'Not a fandom story. An export story. The path from streaming reach to consumer-goods revenue.',
       byline: 'Export & commerce briefing · FY2024–2025 reported figures',
     }},
 
-    { id: 's02', type: 'bigNumber', props: {
+    { id: 's02', tone: 'accent', type: 'bigNumber', props: {
       kicker: 'The number',
       value: '$202M', unit: '',
       caption: 'Follows every $100M increase in Hallyu exports, in related consumer goods — IT devices $105M, cosmetics $73M, apparel $17M, food $15M',
@@ -79,7 +79,7 @@ export const sampleDeck: Deck = {
     }},
 
     // The pie here is genuinely the wrong form: 61.5% of the area is "All others".
-    { id: 's07', type: 'composition', props: {
+    { id: 's07', tone: 'white', type: 'composition', props: {
       kicker: 'Deep dive · K-beauty',
       title: 'Share of US cosmetics imports, 2024',
       chartForm: 'pie',
@@ -122,7 +122,7 @@ export const sampleDeck: Deck = {
       source: 'DearU Q4 2025 results and broker coverage; HYBE annual report',
     }},
 
-    { id: 's09', type: 'timeline', props: {
+    { id: 's09', tone: 'white', type: 'timeline', props: {
       kicker: 'Timeline',
       title: 'Inflection points, 2018 → 2026',
       events: [
@@ -150,7 +150,7 @@ export const sampleDeck: Deck = {
       asOf: '2024–2025',
     }},
 
-    { id: 's11', type: 'points', props: {
+    { id: 's11', tone: 'dark', type: 'points', props: {
       kicker: 'Implications',
       title: 'What this means for allocation',
       points: [

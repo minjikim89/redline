@@ -122,7 +122,7 @@ export default function App() {
       <main className="stage">
         <div className="canvas" ref={canvasRef} data-tick={tick}>
           <SlideScope value={slide.id}>
-            <div className="slide" ref={slideRef}>
+            <div className="slide" ref={slideRef} data-tone={slide.tone ?? 'light'}>
               <Comp {...slide.props} />
             </div>
           </SlideScope>

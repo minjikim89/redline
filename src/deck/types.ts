@@ -14,6 +14,8 @@ export interface Theme {
 
 export interface Slide {
   id: string;
+  /** Surface treatment, carried over from the authored deck. */
+  tone?: 'light' | 'white' | 'dark' | 'accent';
   type: SlideType;
   /** Shape is governed by the type's schema in the registry. */
   props: Record<string, any>;

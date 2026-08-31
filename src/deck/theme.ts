@@ -1,25 +1,21 @@
 import type { Theme } from './types';
 
-/** Carried over from _ideas/ppt-creator-tool so decks look like Minji's decks. */
+/**
+ * Lifted verbatim from the authored deck. These are not "inspired by" values —
+ * the artboard renders at the size it was designed at (1920×1080) and is scaled
+ * to fit, so every measurement below is the one the author chose.
+ */
 export const defaultTheme: Theme = {
-  primary: '#3B82F6',
-  accent:  '#06d6a0',
-  warn:    '#f4a259',
-  ink:     '#0d1b4a',
-  muted:   '#5b6785',
-  surface: '#ffffff',
-  line:    '#e3e7f0',
+  primary: '#FF00C8',
+  accent:  '#9000FF',
+  warn:    '#00A5C8',
+  ink:     '#0B0B12',
+  muted:   '#565C6E',
+  surface: '#FFFFFF',
+  line:    '#E4E8ED',
 };
 
-/** Categorical ramp for charts. Ordered so adjacent slices stay distinguishable. */
-export const series = [
-  '#3B82F6', // blue
-  '#f4a259', // orange
-  '#06d6a0', // teal
-  '#a78bfa', // violet
-  '#fbbf24', // amber
-  '#f472b6', // pink
-  '#0f766e', // deep teal
-  '#1e40af', // deep blue
-  '#94a3b8', // slate
-];
+/** Accent rotation used for stage/section marks. */
+export const series = ['#FF00C8', '#9000FF', '#00A5C8', '#0B0B12'];
+
+export const ARTBOARD = { w: 1920, h: 1080 };

@@ -8,7 +8,8 @@
     "build": "tsc -b && vite build",
     "lint": "oxlint",
     "preview": "vite preview",
-    "check:data": "node scripts/check-placeholders.mjs"
+    "check:data": "node scripts/check-placeholders.mjs",
+    "evals": "webmcp-evals smoke -u http://localhost:5180 -e evals/redline.json -v"
   },
   "dependencies": {
     "react": "^19.2.8",

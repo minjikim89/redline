@@ -1,11 +1,11 @@
 /** The deck model. Agents edit THIS, never HTML. */
 
 export type SlideType =
-  | 'title' | 'bigNumber' | 'composition' | 'timeSeries' | 'comparison'
-  | 'flywheel' | 'metrics' | 'timeline' | 'points' | 'sources';
+  | 'cover' | 'hero' | 'cards' | 'barsPair' | 'flow'
+  | 'figures' | 'panels' | 'timeline' | 'refs';
 
 /** Chart forms a composition slide can take. This enum is the agent's vocabulary. */
-export type ChartForm = 'pie' | 'bar' | 'column';
+export type ChartForm = 'cards' | 'column' | 'pie';
 
 export interface Theme {
   primary: string; accent: string; warn: string;

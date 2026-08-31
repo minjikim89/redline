@@ -30,24 +30,24 @@ const mk = (
 });
 
 export const seedAnnotations: Annotation[] = [
-  // s07 — the pie spends 61.5% of its area on "All others"
-  mk('seed_pie', 's07', 'visualize',
-    "most of this pie is 'all others'. the comparison i care about is korea vs france.",
-    ring(0.36, 0.58, 0.215, 0.375, 1.7),
-    { x: 0.012, y: 0.40 },
-    [{ elementId: 'chart', label: 'the chart' }]),
+  // s06 — a pie asserts a whole these three export lines do not form
+  mk('seed_pie', 's06', 'visualize',
+    "these aren't parts of one whole. a pie implies a total that doesn't mean anything.",
+    ring(0.335, 0.545, 0.115, 0.235, 1.7),
+    { x: -0.148, y: 0.28 },
+    [{ elementId: 'chart', label: 'the export figures' }]),
 
   // s08 — one panel is a year behind the other
   mk('seed_stale', 's08', 'research',
-    "the hybe panel is 2024 but dearu is q4 2025. get the current hybe figures.",
-    ring(0.74, 0.55, 0.21, 0.24, 3.3),
-    { x: 0.845, y: 0.28 },
+    "hybe is 2024, dearu is q4 2025. get the current hybe numbers with a source.",
+    ring(0.748, 0.545, 0.175, 0.215, 3.3),
+    { x: 1.012, y: 0.28 },
     [{ elementId: 'panel.1', label: 'panel: Commerce · HYBE platform segment (2024)' }]),
 
-  // s04 — source lines are written three different ways across the deck
+  // s04 — three different source conventions across the deck
   mk('seed_src', 's04', 'fix',
-    "source lines don't match across slides 4, 7 and 8. pick one format.",
-    ring(0.30, 0.90, 0.28, 0.05, 5.1),
-    { x: 0.845, y: 0.72 },
+    "source lines are written three ways across slides 4, 5 and 7. pick one.",
+    ring(0.26, 0.945, 0.245, 0.035, 5.1),
+    { x: 1.012, y: 0.72 },
     [{ elementId: 'source', label: 'source line' }]),
 ];

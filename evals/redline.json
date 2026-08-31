@@ -1,0 +1,60 @@
+[
+  {
+    "name": "works the queue: reads notes before touching the deck",
+    "messages": [
+      { "role": "user", "type": "message", "content": "Work the open review notes on this deck." }
+    ],
+    "expectedCall": [
+      { "functionName": "list_open_annotations", "arguments": {} }
+    ]
+  },
+  {
+    "name": "visualize note leads to re-forming the chart, not rewriting text",
+    "messages": [
+      { "role": "user", "type": "message",
+        "content": "There's a note on slide 6 saying the pie is wrong. Fix it." }
+    ],
+    "expectedCall": [
+      { "functionName": "read_slide", "arguments": { "slideId": { "$contains": "06" } } },
+      { "functionName": "set_chart_form",
+        "arguments": { "slideId": { "$contains": "06" }, "chartForm": { "$pattern": "^(cards|column)$" } } }
+    ]
+  },
+  {
+    "name": "research note ends with a sourced figure, not a bare number",
+    "messages": [
+      { "role": "user", "type": "message",
+        "content": "The note on slide 8 says the HYBE panel is stale. Handle it." }
+    ],
+    "expectedCall": [
+      { "functionName": "attach_research",
+        "arguments": {
+          "slideId": { "$contains": "08" },
+          "source": { "$type": "string" },
+          "asOf": { "$type": "string" }
+        } }
+    ]
+  },
+  {
+    "name": "a resolved note is closed, and only after the change lands",
+    "messages": [
+      { "role": "user", "type": "message",
+        "content": "Fix the chart form on slide 6 and close the note when it's done." }
+    ],
+    "expectedCall": [
+      { "functionName": "set_chart_form", "arguments": { "chartForm": { "$type": "string" } } },
+      { "functionName": "resolve_annotation", "arguments": { "annotationId": { "$pattern": "^(ann_|seed_)" } } }
+    ]
+  },
+  {
+    "name": "consistency sweep uses the batch tool rather than one call per slide",
+    "messages": [
+      { "role": "user", "type": "message",
+        "content": "The source lines are formatted three different ways. Make them consistent across the deck." }
+    ],
+    "expectedCall": [
+      { "functionName": "unify_across_slides",
+        "arguments": { "field": "source", "slideIds": { "$type": "array" } } }
+    ]
+  }
+]

@@ -95,12 +95,13 @@ export function InkLayer({ slideId, mode, canvasRef, slideRef, annotations, sele
     const targets = resolveTargets(pts.map(p => ({ x: p.x - off.x, y: p.y - off.y })), slide);
 
     const c = centroid(pts);
-    const right = c.x < cRect.width / 2;
+    // park the note in the nearer margin, outside the artboard, pointing in
+    const onLeft = c.x < cRect.width / 2;
     setDraft({
       stroke: pts, targets,
       labelAt: {
-        x: right ? Math.min(cRect.width - 200, c.x + 170) : Math.max(10, c.x - 270),
-        y: Math.max(8, Math.min(cRect.height - 110, c.y - 26)),
+        x: onLeft ? -196 : cRect.width + 18,
+        y: Math.max(-40, Math.min(cRect.height - 40, c.y - 30)),
       },
     });
     setBody('');

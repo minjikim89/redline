@@ -1,13 +1,12 @@
-import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
+import { useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
 import { registry } from './deck/registry';
-import { SlideScope } from './deck/El';
+import { ARTBOARD } from './deck/theme';
 import { InkLayer, type Mode } from './annotations/InkLayer';
 import * as store from './annotations/store';
 import { registerAll, syncConditionalTools, webmcpSupported } from './webmcp/tools';
 
 export default function App() {
   const s = useSyncExternalStore(store.subscribe, store.getState);
-  // deep link: ?slide=6 — used for demo cuts and for screenshot checks
   const [current, setCurrent] = useState(() => {
     const n = Number(new URLSearchParams(location.search).get('slide'));
     return Number.isFinite(n) && n > 0 ? n - 1 : 0;
@@ -15,16 +14,36 @@ export default function App() {
   const [mode, setMode] = useState<Mode>('draw');
   const [tools, setTools] = useState<string[]>([]);
   const [supported, setSupported] = useState<boolean | null>(null);
-  const [tick, setTick] = useState(0);          // re-measure marks after layout changes
+  const [scale, setScale] = useState(0.5);
+  const [tick, setTick] = useState(0);
+
+  const fitRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLDivElement>(null);
   const slideRef = useRef<HTMLDivElement>(null);
 
-  const slide = s.deck.slides[current];
+  const slide = s.deck.slides[Math.min(current, s.deck.slides.length - 1)];
   const Comp = registry[slide.type].component;
+
+  /* The artboard renders at its authored 1920×1080 and is scaled to fit, so the
+     author's own measurements survive at any viewport. Marks measure off the
+     rendered rect, so they follow the scale for free. */
+  useLayoutEffect(() => {
+    const el = fitRef.current;
+    if (!el) return;
+    const measure = () => {
+      const { width, height } = el.getBoundingClientRect();
+      const next = Math.min(width / ARTBOARD.w, height / ARTBOARD.h);
+      setScale(next > 0 ? next : 0.5);
+      setTick(t => t + 1);
+    };
+    measure();
+    const ro = new ResizeObserver(measure);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
 
   useEffect(() => { registerAll().then(r => { setSupported(r.supported); setTools(r.tools); }); }, []);
 
-  // Open notes decide which tools exist, so re-sync whenever the queue moves.
   useEffect(() => {
     syncConditionalTools().then(async () => {
       if (!webmcpSupported()) return;
@@ -33,39 +52,29 @@ export default function App() {
     });
   }, [s.annotations]);
 
-  // The agent's own fix reflows the slide. Marks re-anchor off the model, so
-  // just nudge a re-render once the new layout has settled.
+  // A fix reflows the slide; marks re-anchor off the model, so re-measure after paint.
   useEffect(() => {
     const id = requestAnimationFrame(() => setTick(t => t + 1));
     return () => cancelAnimationFrame(id);
   }, [s.deck, current]);
 
   useEffect(() => {
-    const on = () => setTick(t => t + 1);
-    window.addEventListener('resize', on);
-    return () => window.removeEventListener('resize', on);
-  }, []);
-
-  // Undo is table stakes on a drawing surface.
-  useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       const el = e.target as HTMLElement;
       if (el?.tagName === 'TEXTAREA' || el?.tagName === 'INPUT') return;
       const mod = e.metaKey || e.ctrlKey;
       if (mod && e.key.toLowerCase() === 'z') {
-        e.preventDefault();
-        e.shiftKey ? store.redo() : store.undo();
+        e.preventDefault(); e.shiftKey ? store.redo() : store.undo();
       }
-      if (!mod && (e.key === 'v' || e.key === 'V')) setMode('move');
-      if (!mod && (e.key === 'p' || e.key === 'P')) setMode('draw');
-      if (!mod && (e.key === 'ArrowRight' || e.key === 'ArrowLeft')) {
-        setCurrent(c => Math.min(Math.max(c + (e.key === 'ArrowRight' ? 1 : -1), 0),
-          store.getState().deck.slides.length - 1));
-      }
+      if (mod) return;
+      if (e.key === 'v' || e.key === 'V') setMode('move');
+      if (e.key === 'p' || e.key === 'P') setMode('draw');
+      if (e.key === 'ArrowRight') setCurrent(c => Math.min(c + 1, s.deck.slides.length - 1));
+      if (e.key === 'ArrowLeft') setCurrent(c => Math.max(c - 1, 0));
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, []);
+  }, [s.deck.slides.length]);
 
   const perSlide = useMemo(() => {
     const m = new Map<string, number>();
@@ -76,6 +85,7 @@ export default function App() {
 
   const marks = s.annotations.filter(a => a.slideId === slide.id);
   const openCount = s.annotations.filter(a => a.status === 'open').length;
+  const W = ARTBOARD.w * scale, H = ARTBOARD.h * scale;
 
   return (
     <div className="app">
@@ -84,27 +94,22 @@ export default function App() {
           <strong>Redline</strong>
           <span>{s.deck.title}</span>
         </div>
-
         <ol className="thumbs">
           {s.deck.slides.map((sl, i) => (
             <li key={sl.id}>
               <button className={i === current ? 'thumb on' : 'thumb'} onClick={() => setCurrent(i)}>
                 <span className="tn">{i + 1}</span>
-                <span className="tt">{sl.props.title ?? sl.props.caption ?? 'Cover'}</span>
+                <span className="tt">{sl.props.title ?? sl.props.eyebrow ?? 'Cover'}</span>
                 {perSlide.get(sl.id) && <span className="tp">{perSlide.get(sl.id)}</span>}
               </button>
             </li>
           ))}
         </ol>
-
         <div className="queue">
           <span className="q-n">{openCount}</span>
           <span className="q-l">{openCount === 1 ? 'note open' : 'notes open'}</span>
-          {openCount > 0 && (
-            <button className="q-x" onClick={() => store.clearOpen()}>clear</button>
-          )}
+          {openCount > 0 && <button className="q-x" onClick={() => store.clearOpen()}>clear</button>}
         </div>
-
         <div className={`mcp ${supported === false ? 'off' : supported ? 'on' : ''}`}>
           <div className="mcp-h">
             {supported === null ? 'Checking WebMCP…'
@@ -120,22 +125,22 @@ export default function App() {
       </aside>
 
       <main className="stage">
-        <div className="canvas" ref={canvasRef} data-tick={tick}>
-          <SlideScope value={slide.id}>
-            <div className="slide" ref={slideRef} data-tone={slide.tone ?? 'light'}>
-              <Comp {...slide.props} />
+        <div className="fit" ref={fitRef}>
+          <div className="canvas" ref={canvasRef} style={{ width: W, height: H }} data-tick={tick}>
+            <div className="slide" ref={slideRef} data-tone={slide.tone ?? 'light'}
+              style={{ transform: `scale(${scale})` }}>
+              <Comp {...slide.props} tone={slide.tone} />
             </div>
-          </SlideScope>
-
-          <InkLayer
-            slideId={slide.id}
-            mode={mode}
-            canvasRef={canvasRef}
-            slideRef={slideRef}
-            annotations={marks}
-            selected={s.selected}
-            onDone={() => setTick(t => t + 1)}
-          />
+            <InkLayer
+              slideId={slide.id}
+              mode={mode}
+              canvasRef={canvasRef}
+              slideRef={slideRef}
+              annotations={marks}
+              selected={s.selected}
+              onDone={() => setTick(t => t + 1)}
+            />
+          </div>
         </div>
 
         <div className="toolbar">
@@ -146,14 +151,12 @@ export default function App() {
               title="Move (V)">✥ move</button>
           </div>
           <span className="tb-sep" />
-          <button disabled={!store.canUndo()} onClick={() => store.undo()}
-            title="Undo (⌘Z)">↶ undo</button>
-          <button disabled={!store.canRedo()} onClick={() => store.redo()}
-            title="Redo (⇧⌘Z)">↷ redo</button>
+          <button disabled={!store.canUndo()} onClick={() => store.undo()} title="Undo ⌘Z">↶ undo</button>
+          <button disabled={!store.canRedo()} onClick={() => store.redo()} title="Redo ⇧⌘Z">↷ redo</button>
           <span className="tb-sep" />
           <span className="tb-hint">
             {mode === 'draw'
-              ? 'Circle anything, then write in the margin. Click a mark to resolve or delete it.'
+              ? 'Circle anything on the slide, then write in the margin.'
               : 'Drag a mark or a note to reposition it. Press P to draw again.'}
           </span>
         </div>

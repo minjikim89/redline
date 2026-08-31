@@ -1,6 +1,7 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
 import { registry } from './deck/registry';
 import { EditCtx } from './deck/slideKit';
+import { Inspector } from './deck/Inspector';
 import { ARTBOARD } from './deck/theme';
 import { InkLayer, type Mode } from './annotations/InkLayer';
 import * as store from './annotations/store';
@@ -31,7 +32,9 @@ export default function App() {
   const [mode, setMode] = useState<Mode>('edit');
   const [tools, setTools] = useState<string[]>([]);
   const [supported, setSupported] = useState<boolean | null>(null);
-  const [scale, setScale] = useState(0.5);
+  const [fit, setFit] = useState(0.5);
+  const [zoom, setZoom] = useState(1);
+  const [insp, setInsp] = useState(false);
   const [tick, setTick] = useState(0);
   const [saying, setSaying] = useState<string | null>(null);
   const replayCtl = useRef<AbortController | null>(null);
@@ -52,13 +55,29 @@ export default function App() {
     const measure = () => {
       const { width, height } = el.getBoundingClientRect();
       const next = Math.min(width / ARTBOARD.w, height / ARTBOARD.h);
-      setScale(next > 0 ? next : 0.5);
+      setFit(next > 0 ? next : 0.5);
       setTick(t => t + 1);
     };
     measure();
     const ro = new ResizeObserver(measure);
     ro.observe(el);
     return () => ro.disconnect();
+  }, [insp]);
+
+  const scale = fit * zoom;
+  const zoomBy = (d: number) => setZoom(z => Math.min(3, Math.max(0.4, +(z + d).toFixed(2))));
+
+  // ⌘/ctrl + wheel zooms, the way every canvas does
+  useEffect(() => {
+    const el = fitRef.current;
+    if (!el) return;
+    const onWheel = (e: WheelEvent) => {
+      if (!e.metaKey && !e.ctrlKey) return;
+      e.preventDefault();
+      zoomBy(e.deltaY > 0 ? -0.08 : 0.08);
+    };
+    el.addEventListener('wheel', onWheel, { passive: false });
+    return () => el.removeEventListener('wheel', onWheel);
   }, []);
 
   // main.tsx already registered; this only reads back what is live.
@@ -103,6 +122,10 @@ export default function App() {
       }
       if (mod) return;
       if (e.key === 'e' || e.key === 'E') setMode('edit');
+      if (e.key === 'i' || e.key === 'I') setInsp(v => !v);
+      if (e.key === '=' || e.key === '+') zoomBy(0.1);
+      if (e.key === '-' || e.key === '_') zoomBy(-0.1);
+      if (e.key === '0') setZoom(1);
       if (e.key === 'v' || e.key === 'V') setMode('move');
       if (e.key === 'p' || e.key === 'P') setMode('draw');
       if (e.key === 'ArrowRight') setCurrent(c => Math.min(c + 1, s.deck.slides.length - 1));
@@ -149,7 +172,7 @@ export default function App() {
   const W = ARTBOARD.w * scale, H = ARTBOARD.h * scale;
 
   return (
-    <div className="app">
+    <div className={insp ? 'app with-insp' : 'app'}>
       <aside className="rail">
         <div className="brand">
           <strong>Redline</strong>
@@ -262,6 +285,16 @@ export default function App() {
           <button disabled={!store.canUndo()} onClick={() => store.undo()} title="Undo ⌘Z">↶ undo</button>
           <button disabled={!store.canRedo()} onClick={() => store.redo()} title="Redo ⇧⌘Z">↷ redo</button>
           <span className="tb-sep" />
+          <div className="zoom">
+            <button onClick={() => zoomBy(-0.1)} title="Zoom out (−)">−</button>
+            <button className="z-n" onClick={() => setZoom(1)} title="Reset (0)">
+              {Math.round(scale * 100)}%
+            </button>
+            <button onClick={() => zoomBy(0.1)} title="Zoom in (+)">+</button>
+          </div>
+          <button className={insp ? 'insp-t on' : 'insp-t'} onClick={() => setInsp(v => !v)}
+            title="Properties (I)">⚙ props</button>
+          <span className="tb-sep" />
           <button className={replaying ? 'replay on' : 'replay'} onClick={toggleReplay}>
             {replaying ? '■ stop' : '▶ watch a pass'}
           </button>
@@ -269,12 +302,16 @@ export default function App() {
           <span className={replaying ? 'tb-hint saying' : 'tb-hint'}>
             {replaying
               ? `${saying} · scripted, running the real tools`
-              : mode === 'draw'
-                ? 'Circle anything on the slide, then write in the margin.'
-                : 'Drag a mark or a note to reposition it. Press P to draw again.'}
+              : mode === 'edit'
+                ? 'Click any text to rewrite it. ⚙ props opens the rest of the slide.'
+                : mode === 'draw'
+                  ? 'Circle anything on the slide, then write in the margin.'
+                  : 'Drag a mark or a note to reposition it.'}
           </span>
         </div>
       </main>
+
+      {insp && <Inspector slide={slide} />}
     </div>
   );
 }

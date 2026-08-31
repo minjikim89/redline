@@ -93,6 +93,11 @@ export function getSlide(slideId: string) {
 }
 
 /** Set a value at a dotted path, e.g. "title" or "cards.0.head". */
+export function setTone(slideId: string, tone: 'light' | 'white' | 'dark' | 'accent') {
+  const slides = state.deck.slides.map(x => x.id === slideId ? { ...x, tone } : x);
+  set({ deck: { ...state.deck, slides } });
+}
+
 export function setByPath(slideId: string, path: string, value: unknown) {
   const slide = getSlide(slideId);
   if (!slide) return null;

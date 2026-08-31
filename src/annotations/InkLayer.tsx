@@ -194,11 +194,19 @@ export function InkLayer({ slideId, mode, canvasRef, slideRef, annotations, sele
             }}
             onPointerEnter={() => setHover(a.id)}
             onPointerLeave={() => setHover(h => (h === a.id ? null : h))}>
-            <span className="scribble-kind">{a.kind}</span>
+            <span className="scribble-kind">
+              {a.kind}
+              {a.status === 'open' && a.replies.length > 0
+                && a.replies[a.replies.length - 1].author === 'agent'
+                && <b className="wait"> · waiting on you</b>}
+            </span>
             <span className={a.status === 'resolved' ? 'sb-body struck' : 'sb-body'}>{a.body}</span>
             {a.replies.map(r => (
-              <span key={r.id} className="scribble-reply">↳ {r.body}</span>
+              <span key={r.id} className={`scribble-reply ${r.author}`}>
+                {r.author === 'agent' ? '↳ ' : '↩ '}{r.body}
+              </span>
             ))}
+            {on && <HumanReply annotationId={a.id} />}
             {on && (
               <div className="mark-acts" onPointerDown={e => e.stopPropagation()}>
                 {a.status === 'open'
@@ -237,5 +245,26 @@ export function InkLayer({ slideId, mode, canvasRef, slideRef, annotations, sele
         </div>
       )}
     </>
+  );
+}
+
+/** A person answering back on their own note. The thread is the product. */
+function HumanReply({ annotationId }: { annotationId: string }) {
+  const [text, setText] = useState('');
+  return (
+    <div className="hr" onPointerDown={e => e.stopPropagation()}>
+      <textarea value={text} placeholder="reply…" rows={2}
+        onChange={e => setText(e.target.value)}
+        onKeyDown={e => {
+          if (e.key === 'Enter' && !e.shiftKey) {
+            e.preventDefault();
+            if (!text.trim()) return;
+            store.replyToAnnotation(annotationId, text.trim(), 'human');
+            setText('');
+          }
+          if (e.key === 'Escape') setText('');
+        }} />
+      <span className="hr-key"><kbd>↵</kbd> send · they see it next time they read the queue</span>
+    </div>
   );
 }

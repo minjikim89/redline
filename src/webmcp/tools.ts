@@ -118,8 +118,11 @@ const baseTools: Reg[] = [
     name: 'list_open_annotations',
     title: 'List open notes',
     description:
-      'The review queue: every unresolved note a person marked on the deck, with the slide '
-      + 'and region each one is anchored to. Work them one at a time and resolve each when done.',
+      'The review queue: every unresolved note a person marked on the deck, with the slide and '
+      + 'region each is anchored to, and the thread of replies on it. The queue changes while '
+      + 'you work — a person can add notes or answer yours at any time — so re-read it after '
+      + 'each note rather than trusting an earlier copy. A note whose last word is yours is '
+      + 'waiting on them; leave it open.',
     inputSchema: { type: 'object', properties: {}, additionalProperties: false },
     // note bodies are human free text
     annotations: READ_UNTRUSTED,
@@ -128,15 +131,21 @@ const baseTools: Reg[] = [
         id: a.id, kind: a.kind, note: a.body.slice(0, 180),
         slideId: a.slideId,
         marked: a.targets.map(t => t.label).slice(0, 2),
+        ...(a.replies.length && {
+          thread: a.replies.slice(-4).map(r => `${r.author}: ${r.body.slice(0, 140)}`),
+          waitingOn: a.replies[a.replies.length - 1].author === 'agent' ? 'them' : 'you',
+        }),
       }));
-      return ok({ open: items, omitted });
+      return ok({ open: items, omitted, note: 'Re-read this after each change; it can grow.' });
     },
   },
   {
     name: 'set_slide_text',
     title: 'Rewrite one text field',
     description:
-      'Replace the text of a single named region on a slide. Each call touches one field.',
+      'Replace the text of one named region on one slide. Reach for this when a single '
+      + 'passage is wrong. When the same field needs the same treatment on several slides, '
+      + 'unify_across_slides does it in one call and lets the person stop it partway.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -329,9 +338,10 @@ const conditionalTools: Record<string, Reg> = {
     name: 'unify_across_slides',
     title: 'Apply one value across slides',
     description:
-      'Set the same text field to one agreed value on several slides at once, applied in '
-      + 'sequence so the person watching can stop it partway. Use it to make a convention '
-      + 'consistent across a deck.',
+      'Make one convention consistent across a deck: sets the same text field on several '
+      + 'slides in one call, applied in sequence so the person watching can stop it partway. '
+      + 'This is the tool for "these are formatted three different ways, pick one". Use '
+      + '"{value}" in the template to keep each slide\'s existing text and wrap it.',
     inputSchema: {
       type: 'object',
       properties: {

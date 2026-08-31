@@ -1,5 +1,6 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
 import { registry } from './deck/registry';
+import { EditCtx } from './deck/slideKit';
 import { ARTBOARD } from './deck/theme';
 import { InkLayer, type Mode } from './annotations/InkLayer';
 import * as store from './annotations/store';
@@ -27,7 +28,7 @@ export default function App() {
     const n = Number(new URLSearchParams(location.search).get('slide'));
     return Number.isFinite(n) && n > 0 ? n - 1 : 0;
   });
-  const [mode, setMode] = useState<Mode>('draw');
+  const [mode, setMode] = useState<Mode>('edit');
   const [tools, setTools] = useState<string[]>([]);
   const [supported, setSupported] = useState<boolean | null>(null);
   const [scale, setScale] = useState(0.5);
@@ -101,6 +102,7 @@ export default function App() {
         e.preventDefault(); e.shiftKey ? store.redo() : store.undo();
       }
       if (mod) return;
+      if (e.key === 'e' || e.key === 'E') setMode('edit');
       if (e.key === 'v' || e.key === 'V') setMode('move');
       if (e.key === 'p' || e.key === 'P') setMode('draw');
       if (e.key === 'ArrowRight') setCurrent(c => Math.min(c + 1, s.deck.slides.length - 1));
@@ -201,9 +203,20 @@ export default function App() {
           <div className="canvas" ref={canvasRef} style={{ width: W, height: H }} data-tick={tick}>
             <div className="slide" ref={slideRef} data-tone={slide.tone ?? 'light'}
               style={{ transform: `scale(${scale})` }}>
-              <Comp {...slide.props} tone={slide.tone} />
+              <EditCtx.Provider value={{ slideId: slide.id, editing: mode === 'edit' }}>
+                <Comp {...slide.props} tone={slide.tone} />
+              </EditCtx.Provider>
               {slide.conflict && <ConflictRing elementId={slide.conflict.elementId} />}
             </div>
+            {mode === 'edit' && 'chartForm' in registry[slide.type].propSchema && (
+              <div className="formpick">
+                <span>chart</span>
+                {(registry[slide.type].propSchema.chartForm.enum as string[]).map(f => (
+                  <button key={f} className={slide.props.chartForm === f ? 'on' : ''}
+                    onClick={() => store.setByPath(slide.id, 'chartForm', f)}>{f}</button>
+                ))}
+              </div>
+            )}
             {slide.conflict && (
               <div className="conflict">
                 <div className="cf-h">
@@ -238,10 +251,12 @@ export default function App() {
 
         <div className="toolbar">
           <div className="modes">
+            <button className={mode === 'edit' ? 'on' : ''} onClick={() => setMode('edit')}
+              title="Edit text (E)">✚ edit</button>
             <button className={mode === 'draw' ? 'on' : ''} onClick={() => setMode('draw')}
-              title="Draw (P)">✎ draw</button>
+              title="Draw a note (P)">✎ note</button>
             <button className={mode === 'move' ? 'on' : ''} onClick={() => setMode('move')}
-              title="Move (V)">✥ move</button>
+              title="Move marks (V)">✥ move</button>
           </div>
           <span className="tb-sep" />
           <button disabled={!store.canUndo()} onClick={() => store.undo()} title="Undo ⌘Z">↶ undo</button>

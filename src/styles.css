@@ -206,7 +206,8 @@ button{font:inherit;cursor:pointer;border:0;background:none;color:inherit}
 .refs{display:grid;grid-template-columns:1fr 1fr;gap:70px;width:100%}
 .refs-col{display:flex;flex-direction:column;gap:30px}
 .ref{font-size:28px;font-weight:300;line-height:1.45;color:var(--mut)}
-.ref strong{font-weight:600;color:var(--ink)}
+.ref-topic{display:inline;font-weight:600;color:var(--ink)}
+.ref-text{display:inline}
 
 /* ================= ink ================= */
 /* The canvas is wider than the artboard so notes can live in the margin and
@@ -331,3 +332,26 @@ button:focus-visible,textarea:focus-visible{outline:2px solid var(--pink);outlin
 .hr textarea::placeholder{text-transform:none;font-size:11.5px;color:#B6AE99}
 .hr-key{display:block;margin-top:3px;font:8.5px 'IBM Plex Sans';color:#A79F8A}
 .hr-key kbd{background:#F1EDE1;border-radius:3px;padding:0 3px}
+
+/* ---------- direct editing ---------- */
+.editable{outline:1px dashed transparent;outline-offset:6px;border-radius:6px;
+  transition:outline-color .12s,background .12s;cursor:text}
+.editable:hover{outline-color:rgba(255,0,200,.38);background:rgba(255,0,200,.035)}
+.editable:focus{outline:2px solid var(--pink);outline-offset:6px;
+  background:rgba(255,0,200,.05)}
+[data-tone="dark"] .editable:hover,[data-tone="accent"] .editable:hover{
+  background:rgba(255,255,255,.07)}
+
+.formpick{position:absolute;left:0;top:calc(100% + 12px);z-index:6;display:flex;
+  align-items:center;gap:4px;padding:5px 8px;background:var(--chrome);
+  border:1px solid var(--chrome-line);border-radius:9px}
+.formpick>span{font:600 9px 'IBM Plex Sans';letter-spacing:.12em;text-transform:uppercase;
+  color:#9AA0AE;margin-right:2px}
+.formpick button{padding:3px 9px;border-radius:6px;font:500 11px 'IBM Plex Sans';
+  background:#F4F5F8;color:var(--chrome-mut)}
+.formpick button:hover{background:#EAECF2;color:var(--chrome-ink)}
+.formpick button.on{background:var(--pink);color:#fff}
+.brow-head .editable{display:inline-block}
+.brow-val{display:inline-flex;align-items:baseline;gap:1px}
+.ref .editable{display:inline}
+.hero-row .editable{display:inline-block}

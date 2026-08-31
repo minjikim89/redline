@@ -10,7 +10,7 @@ const KINDS: { k: AnnotationKind; label: string }[] = [
 
 interface Draft { stroke: Pt[]; targets: Target[]; labelAt: Pt }
 
-export type Mode = 'draw' | 'move';
+export type Mode = 'edit' | 'draw' | 'move';
 
 interface Drag { id: string; part: 'label' | 'stroke'; from: Pt; dx: number; dy: number }
 
@@ -45,7 +45,7 @@ export function InkLayer({ slideId, mode, canvasRef, slideRef, annotations, sele
   };
 
   const down = (e: React.PointerEvent) => {
-    if (draft || mode === 'move') return;
+    if (draft || mode !== 'draw') return;
     store.select(null);
     drawing.current = true;
     (e.target as Element).setPointerCapture?.(e.pointerId);

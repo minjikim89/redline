@@ -1,15 +1,19 @@
 # Redline
 
-**Circle it. Write in the margin. Your agent works the queue.**
+**A slide editor you and your agent both have hands in.**
 
 Every AI deck tool can *generate*. None of them can *edit with you*. The moment you
 fix a slide by hand, the model goes blind — it can't see what you changed, so asking
 it to "make the rest match" regenerates from stale memory and destroys your work.
 
-Redline closes that loop. You mark up a deck the way you'd mark up paper: circle
-something, write beside it. The mark resolves to the model elements underneath, so
-an agent knows exactly what you meant, edits the live deck, and writes back on the
-same pin.
+Redline closes that loop. Click any text and rewrite it; the edit lands in the same
+typed model an agent's tools write to, so `read_slide` returns what you just typed.
+And when something needs more than a retype, mark it the way you'd mark paper: circle
+it, write beside it. The mark resolves to the elements underneath, so the agent knows
+exactly what you meant, edits the live deck, and writes back on the same pin.
+
+Three modes: **edit** rewrites text directly, **note** draws a mark for the agent,
+**move** repositions marks.
 
 > Requires Chrome 149+ with `chrome://flags/#enable-webmcp-testing`, or the ChatGPT
 > desktop app's built-in browser. Open the URL and the deck is already marked up.

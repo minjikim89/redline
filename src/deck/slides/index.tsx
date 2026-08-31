@@ -8,9 +8,9 @@ export function CoverSlide({ eyebrow, title, subtitle, meta }: any) {
   return (
     <div className="sheet cover">
       <div>
-        <A id="kicker" label="eyebrow" className="k" style={{ color: PINK }}>{eyebrow}</A>
-        <A id="title" label="deck title" className="h1">{title}</A>
-        <A id="subtitle" label="standfirst" className="cover-sub">{subtitle}</A>
+        <A id="kicker" label="eyebrow" path="eyebrow" className="k" style={{ color: PINK }}>{eyebrow}</A>
+        <A id="title" label="deck title" path="title" className="h1">{title}</A>
+        <A id="subtitle" label="standfirst" path="subtitle" className="cover-sub">{subtitle}</A>
       </div>
       <A id="meta" label="cover meta" className="cover-meta">
         {meta?.map((m: string) => <span key={m}>{m}</span>)}
@@ -23,13 +23,13 @@ export function CoverSlide({ eyebrow, title, subtitle, meta }: any) {
 export function HeroSlide({ eyebrow, figure, tail, body, footnote }: any) {
   return (
     <div className="sheet hero">
-      <A id="kicker" label="framing line" className="hero-eyebrow">{eyebrow}</A>
-      <A id="value" label="the headline figure" className="hero-row">
-        <span className="hero-fig">{figure}</span>
-        <span className="hero-tail">{tail}</span>
-      </A>
-      <A id="body" label="the qualifier" className="hero-body">{body}</A>
-      <A id="source" label="footnote" className="hero-foot">{footnote}</A>
+      <A id="kicker" label="framing line" path="eyebrow" className="hero-eyebrow">{eyebrow}</A>
+      <div className="hero-row" data-el-id="value" data-el-label="the headline figure">
+        <A id="value.figure" label="the figure" path="figure" className="hero-fig">{figure}</A>
+        <A id="value.tail" label="the verb" path="tail" className="hero-tail">{tail}</A>
+      </div>
+      <A id="body" label="the qualifier" path="body" className="hero-body">{body}</A>
+      <A id="source" label="footnote" path="footnote" className="hero-foot">{footnote}</A>
     </div>
   );
 }
@@ -39,18 +39,20 @@ export function CardsSlide({ kicker, accent, title, cards, footnote, footMark, t
   return (
     <Sheet kicker={kicker} accent={accent} title={title}
       foot={footnote && (
-        <A id="footnote" label="closing note" className="cards-foot">
+        <div className="cards-foot" data-el-id="footnote" data-el-label="closing note">
           {footMark && <span style={{ color: PINK }}>{footMark}</span>}
-          <p>{footnote}</p>
-        </A>
+          <A id="footnote.text" label="closing note" path="footnote"><p>{footnote}</p></A>
+        </div>
       )}>
       <div className="cards" style={{ gridTemplateColumns: `repeat(${cards?.length ?? 3},1fr)` }}>
         {cards?.map((c: any, i: number) => (
           <A key={c.head} id={`card.${i}`} label={`card: ${c.head}`}
             className={`card${tone === 'dark' ? ' on-dark' : ''}`}>
             <span className="card-ix" style={{ color: c.color ?? PINK }}>{c.index}</span>
-            <span className="card-head">{c.head}</span>
-            <span className="card-body">{c.body}</span>
+            <A id={`card.${i}.head`} label={`card head: ${c.head}`}
+              path={`cards.${i}.head`} className="card-head">{c.head}</A>
+            <A id={`card.${i}.body`} label={`card body: ${c.head}`}
+              path={`cards.${i}.body`} className="card-body">{c.body}</A>
           </A>
         ))}
       </div>
@@ -65,9 +67,10 @@ export function BarsPairSlide({ kicker, accent, title, left, right, source, asOf
     // it happens to be the largest in its group would misstate it.
     const max = g.unit === '%' ? 100 : (Math.max(...g.rows.map((r: any) => r.value)) || 1);
     return (
-      <BarGroup caption={g.caption} note={g.note}
+      <BarGroup caption={g.caption} note={g.note} side={side as 'left' | 'right'}
         rows={g.rows.map((r: any, i: number) => (
           <BarRow key={r.label} id={`${side}.bar.${i}`} label={r.label}
+            path={`${side}.rows.${i}`}
             value={r.value} unit={g.unit} pct={(r.value / max) * 100}
             color={r.color ?? (r.strong ? PINK : NEUTRAL)} strong={r.strong} />
         ))} />
@@ -94,8 +97,10 @@ export function FlowSlide({ kicker, accent, title, steps, chart, notes, source, 
             <>
               {i > 0 && <span key={`a${i}`} className="flow-arrow" style={{ color: accent }}>→</span>}
               <A key={s.head} id={`step.${i}`} label={`step: ${s.head}`} className="flow-card">
-                <span className="flow-head">{s.head}</span>
-                <span className="flow-body">{s.body}</span>
+                <A id={`step.${i}.head`} label={`step: ${s.head}`}
+                  path={`steps.${i}.head`} className="flow-head">{s.head}</A>
+                <A id={`step.${i}.body`} label={`step note: ${s.head}`}
+                  path={`steps.${i}.body`} className="flow-body">{s.body}</A>
               </A>
             </>
           ))}
@@ -190,9 +195,12 @@ export function FiguresSlide({ kicker, accent, title, chartForm = 'pie', items, 
             {items?.map((it: any, i: number) => (
               <div className="fig-card" key={it.tag}>
                 <span className="fig-tag" style={{ color: colors[i % 3] }}>{it.tag}</span>
-                <span className="fig-head">{it.head}</span>
-                <span className="fig-value">{it.figure}</span>
-                <span className="fig-body">{it.body}</span>
+                <A id={`item.${i}.head`} label={`figure label: ${it.head}`}
+                  path={`items.${i}.head`} className="fig-head">{it.head}</A>
+                <A id={`item.${i}.value`} label={`figure: ${it.head}`}
+                  path={`items.${i}.figure`} className="fig-value">{it.figure}</A>
+                <A id={`item.${i}.body`} label={`figure note: ${it.head}`}
+                  path={`items.${i}.body`} className="fig-body">{it.body}</A>
               </div>
             ))}
           </div>
@@ -215,14 +223,18 @@ export function PanelsSlide({ kicker, accent, title, panels, source, asOf }: any
               {p.metrics?.map((m: any, mi: number) => (
                 <div className="panel-m" key={m.label}
                   data-el-id={`panel.${pi}.metric.${mi}`} data-el-label={`figure: ${m.label}`}>
-                  <span className="panel-v" style={m.emphasis ? { color: pi === 0 ? PINK : VIOLET } : undefined}>
+                  <A id={`panel.${pi}.metric.${mi}.value`} label={`figure: ${m.label}`}
+                    path={`panels.${pi}.metrics.${mi}.value`} className="panel-v"
+                    style={m.emphasis ? { color: pi === 0 ? PINK : VIOLET } : undefined}>
                     {m.value}
-                  </span>
-                  <span className="panel-l">{m.label}</span>
+                  </A>
+                  <A id={`panel.${pi}.metric.${mi}.label`} label={`label: ${m.label}`}
+                    path={`panels.${pi}.metrics.${mi}.label`} className="panel-l">{m.label}</A>
                 </div>
               ))}
             </div>
-            <p className="panel-note">{p.note}</p>
+            <A id={`panel.${pi}.note`} label={`panel note: ${p.heading}`}
+              path={`panels.${pi}.note`} className="panel-note">{p.note}</A>
           </A>
         ))}
       </div>
@@ -242,10 +254,11 @@ export function TimelineSlide({ kicker, accent, title, events, source }: any) {
         </div>
         <div className="tline-rule" />
         <div className="tline-items">
-          {events?.map((e: any) => (
+          {events?.map((e: any, i: number) => (
             <A key={e.year} id={`event.${e.year}`} label={`${e.year} entry`} className="tline-item">
               <i style={{ background: e.late ? PINK : VIOLET }} />
-              <p>{e.text}</p>
+              <A id={`event.${e.year}.text`} label={`${e.year} text`}
+                path={`events.${i}.text`}><p>{e.text}</p></A>
             </A>
           ))}
         </div>
@@ -257,20 +270,24 @@ export function TimelineSlide({ kicker, accent, title, events, source }: any) {
 /* ---------------- 12 references ---------------- */
 export function RefsSlide({ kicker, accent, title, groups, note }: any) {
   const half = Math.ceil((groups?.length ?? 0) / 2);
-  const col = (list: any[], side: string) => (
+  const col = (list: any[], side: string, offset: number) => (
     <div className="refs-col">
       {list.map((g, i) => (
-        <A key={g.topic} id={`${side}.ref.${i}`} label={`reference: ${g.topic}`} className="ref">
-          <strong>{g.topic}</strong> {g.text}
-        </A>
+        <div key={g.topic} className="ref"
+          data-el-id={`${side}.ref.${i}`} data-el-label={`reference: ${g.topic}`}>
+          <A id={`${side}.ref.${i}.topic`} label={`reference topic: ${g.topic}`}
+            path={`groups.${offset + i}.topic`} className="ref-topic">{g.topic}</A>{' '}
+          <A id={`${side}.ref.${i}.text`} label={`reference text: ${g.topic}`}
+            path={`groups.${offset + i}.text`} className="ref-text">{g.text}</A>
+        </div>
       ))}
     </div>
   );
   return (
     <Sheet kicker={kicker} accent={accent} title={title} source={note}>
       <div className="refs">
-        {col(groups?.slice(0, half) ?? [], 'left')}
-        {col(groups?.slice(half) ?? [], 'right')}
+        {col(groups?.slice(0, half) ?? [], 'left', 0)}
+        {col(groups?.slice(half) ?? [], 'right', half)}
       </div>
     </Sheet>
   );

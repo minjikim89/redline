@@ -92,6 +92,25 @@ export function getSlide(slideId: string) {
   return state.deck.slides.find(s => s.id === slideId) ?? null;
 }
 
+/** Set a value at a dotted path, e.g. "title" or "cards.0.head". */
+export function setByPath(slideId: string, path: string, value: unknown) {
+  const slide = getSlide(slideId);
+  if (!slide) return null;
+  const keys = path.split('.');
+  const clone = (v: any): any =>
+    Array.isArray(v) ? v.map(clone) : v && typeof v === 'object' ? { ...v } : v;
+  const props = clone(slide.props);
+  let node: any = props;
+  for (let i = 0; i < keys.length - 1; i++) {
+    node[keys[i]] = clone(node[keys[i]] ?? {});
+    node = node[keys[i]];
+  }
+  node[keys[keys.length - 1]] = value;
+  const slides = state.deck.slides.map(x => x.id === slideId ? { ...x, props } : x);
+  set({ deck: { ...state.deck, slides } });
+  return getSlide(slideId);
+}
+
 export function updateSlideProps(slideId: string, patch: Record<string, unknown>) {
   const slides = state.deck.slides.map(s =>
     s.id === slideId ? { ...s, props: { ...s.props, ...patch } } : s);

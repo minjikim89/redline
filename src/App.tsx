@@ -6,6 +6,21 @@ import * as store from './annotations/store';
 import { registerAll, syncConditionalTools, webmcpSupported } from './webmcp/tools';
 import { buildScript, runScript } from './annotations/replay';
 
+/** Outlines the region an agent flagged, inside the artboard so it scales with it. */
+function ConflictRing({ elementId }: { elementId: string }) {
+  const [box, setBox] = useState<{ x: number; y: number; w: number; h: number } | null>(null);
+  useLayoutEffect(() => {
+    const slide = document.querySelector('.slide') as HTMLElement | null;
+    const host = slide?.querySelector(`[data-el-id="${elementId}"]`) as HTMLElement | null;
+    if (!slide || !host) return;
+    const s = slide.getBoundingClientRect(), h = host.getBoundingClientRect();
+    const k = ARTBOARD.w / s.width;                       // undo the artboard scale
+    setBox({ x: (h.left - s.left) * k, y: (h.top - s.top) * k, w: h.width * k, h: h.height * k });
+  }, [elementId]);
+  if (!box) return null;
+  return <div className="cf-ring" style={{ left: box.x, top: box.y, width: box.w, height: box.h }} />;
+}
+
 export default function App() {
   const s = useSyncExternalStore(store.subscribe, store.getState);
   const [current, setCurrent] = useState(() => {
@@ -154,6 +169,19 @@ export default function App() {
           <span className="q-l">{openCount === 1 ? 'note open' : 'notes open'}</span>
           {openCount > 0 && <button className="q-x" onClick={() => store.clearOpen()}>clear</button>}
         </div>
+        {s.calls.length > 0 && (
+          <div className="trail">
+            <div className="trail-h">tool calls</div>
+            <ol>
+              {s.calls.slice(-7).reverse().map(c => (
+                <li key={c.id} className={c.ok ? '' : 'bad'}>
+                  <code>{c.name}</code>
+                  <span>{c.detail}</span>
+                </li>
+              ))}
+            </ol>
+          </div>
+        )}
         <div className={`mcp ${supported === false ? 'off' : supported ? 'on' : ''}`}>
           <div className="mcp-h">
             {supported === null ? 'Checking WebMCP…'
@@ -174,7 +202,28 @@ export default function App() {
             <div className="slide" ref={slideRef} data-tone={slide.tone ?? 'light'}
               style={{ transform: `scale(${scale})` }}>
               <Comp {...slide.props} tone={slide.tone} />
+              {slide.conflict && <ConflictRing elementId={slide.conflict.elementId} />}
             </div>
+            {slide.conflict && (
+              <div className="conflict">
+                <div className="cf-h">
+                  <span className="cf-tag">agent flagged a claim</span>
+                  <span className="cf-src">from the figure it just verified</span>
+                </div>
+                <p className="cf-claim">“{slide.conflict.claim}”</p>
+                <p className="cf-why">{slide.conflict.why}</p>
+                <div className="cf-acts">
+                  <button className="cf-keep" onClick={() => store.clearConflict(slide.id)}>
+                    keep the claim
+                  </button>
+                  <button className="cf-edit" onClick={() => {
+                    const next = prompt('Rewrite the claim:', String(slide.props.title ?? ''));
+                    if (next) store.updateSlideProps(slide.id, { title: next });
+                    store.clearConflict(slide.id);
+                  }}>rewrite it</button>
+                </div>
+              </div>
+            )}
             <InkLayer
               slideId={slide.id}
               mode={mode}

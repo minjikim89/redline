@@ -1,4 +1,4 @@
-import type { Annotation, AnnotationKind, Author, Deck, Pt, Reply, Target } from '../deck/types';
+import type { Annotation, AnnotationKind, Author, Conflict, Deck, Pt, Reply, Target } from '../deck/types';
 import { sampleDeck } from '../deck/sampleDeck';
 import { seedAnnotations } from './seed';
 
@@ -6,7 +6,13 @@ import { seedAnnotations } from './seed';
  * External store. Tools mutate it from outside React's tree, so we keep state
  * here and subscribe via useSyncExternalStore rather than lifting into a component.
  */
-type State = { deck: Deck; annotations: Annotation[]; selected: string | null };
+export interface CallRecord { id: number; name: string; ok: boolean; detail: string; at: number }
+
+type State = {
+  deck: Deck; annotations: Annotation[]; selected: string | null;
+  /** A visible trail of what the agent actually invoked. */
+  calls: CallRecord[];
+};
 
 // `?blank=1` opens an unmarked deck; the default shows the review already in progress.
 const blank = typeof location !== 'undefined'
@@ -16,6 +22,7 @@ let state: State = {
   deck: sampleDeck,
   annotations: blank ? [] : seedAnnotations.map(a => ({ ...a })),
   selected: null,
+  calls: [],
 };
 const listeners = new Set<() => void>();
 
@@ -62,6 +69,24 @@ const uid = (p: string) => `${p}_${Math.random().toString(36).slice(2, 9)}`;
 const now = () => new Date().toISOString();
 
 /* ---------- deck ---------- */
+
+/**
+ * An agent may flag that a figure it just verified undercuts a claim still on
+ * the slide. It does NOT rewrite the claim — a headline is an argument, and
+ * changing one is the author's call.
+ */
+export function raiseConflict(slideId: string, c: Omit<Conflict, 'raisedBy' | 'at'>) {
+  const slides = state.deck.slides.map(s => s.id === slideId
+    ? { ...s, conflict: { ...c, raisedBy: 'agent' as const, at: now() } } : s);
+  set({ deck: { ...state.deck, slides } });
+  return getSlide(slideId);
+}
+
+export function clearConflict(slideId: string) {
+  const slides = state.deck.slides.map(s =>
+    s.id === slideId ? { ...s, conflict: undefined } : s);
+  set({ deck: { ...state.deck, slides } });
+}
 
 export function getSlide(slideId: string) {
   return state.deck.slides.find(s => s.id === slideId) ?? null;
@@ -147,7 +172,18 @@ export function reopenAnnotation(id: string) {
 /** Put the deck and the queue back to how the page opened. */
 export function reset() {
   past.length = 0; future.length = 0;
-  state = { deck: sampleDeck, annotations: seedAnnotations.map(a => ({ ...a })), selected: null };
+  state = {
+    deck: sampleDeck, annotations: seedAnnotations.map(a => ({ ...a })),
+    selected: null, calls: [],
+  };
+  emit();
+}
+
+/** Tool traffic is invisible by nature; this makes it legible on the page. */
+let callSeq = 0;
+export function logCall(name: string, ok: boolean, detail: string) {
+  const rec: CallRecord = { id: ++callSeq, name, ok, detail, at: Date.now() };
+  state = { ...state, calls: [...state.calls, rec].slice(-40) };
   emit();
 }
 

@@ -12,6 +12,15 @@ export interface Theme {
   ink: string; muted: string; surface: string; line: string;
 }
 
+/** A researched figure that undercuts something the slide still asserts. */
+export interface Conflict {
+  elementId: string;
+  claim: string;
+  why: string;
+  raisedBy: 'agent';
+  at: string;
+}
+
 export interface Slide {
   id: string;
   /** Surface treatment, carried over from the authored deck. */
@@ -19,6 +28,8 @@ export interface Slide {
   type: SlideType;
   /** Shape is governed by the type's schema in the registry. */
   props: Record<string, any>;
+  /** Raised by the agent, cleared by a person. Never auto-applied. */
+  conflict?: Conflict;
 }
 
 export interface Deck {

@@ -83,9 +83,30 @@ toolset in real time*:
 
 | Tool | Appears when | Notable |
 |---|---|---|
-| `set_chart_form` | a `visualize` note is open | enum of forms, asks for a rationale |
-| `attach_research` | a `research` note is open | `untrustedContentHint`; requires `source` and `asOf` |
+| `set_chart_form` | a `visualize` note is open | enum of forms, validated against the slide's own registry entry |
+| `attach_research` | a `research` note is open | `untrustedContentHint`; requires `source` and `asOf`; can raise a `contradicts` flag |
 | `unify_across_slides` | a `fix` note is open | long-running and **cancellable mid-sweep** |
+
+### When the answer breaks the argument
+
+`attach_research` takes an optional `contradicts`. An agent that verifies a figure and
+finds it undercuts something the slide still asserts raises the conflict — and stops
+there. The claim is outlined on the artboard, the author sees what was found and why,
+and decides.
+
+This is the case the loop exists for. Ask a chatbot for a company's latest results and
+it answers correctly and uselessly: it has never seen slide 8, so it cannot know the
+figure it just gave you invalidates that slide's headline. On this page it can, because
+the deck and the tools share one address space.
+
+The tool will not rewrite the claim. A number is a fact and an argument is a position;
+the agent is allowed to correct the first and only allowed to question the second.
+
+### Every call is visible
+
+Tool traffic is invisible by nature, which makes it hard to trust. Each invocation is
+traced onto the page — name, arguments, whether it succeeded — so a person watching can
+see exactly what the agent did, in order.
 
 ```js
 document.modelContext.registerTool({
@@ -137,7 +158,13 @@ npm run evals      # webmcp-evals smoke: no API key needed
 npm run check:data # refuses to ship unsourced figures
 ```
 
-`?blank=1` opens an unmarked deck. `?slide=6` deep-links a slide.
+`?blank=1` opens an unmarked deck. `?slide=6` deep-links a slide. `?replay=1` runs the
+scripted pass on load.
+
+**▶ watch a pass** in the toolbar runs the queue end to end without an agent attached,
+by calling the same tool implementations in the order an agent calls them. It is
+labelled as scripted in the UI because it is: the tool calls are real, the sentences
+the agent "says" are not. The demo video shows the real thing.
 
 ## The deck
 

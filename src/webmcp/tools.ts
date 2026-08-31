@@ -281,19 +281,47 @@ const conditionalTools: Record<string, Reg> = {
         unit: { type: 'string', maxLength: 12 },
         source: { type: 'string', maxLength: 200, description: 'Publisher and dataset.' },
         asOf: { type: 'string', maxLength: 40, description: 'Period covered, e.g. "2026 Q2".' },
+        contradicts: {
+          type: 'object',
+          description:
+            'Set this when the figure you just verified undercuts something the slide still '
+            + 'asserts — a headline, a caption, a framing. Raising it flags the claim for the '
+            + 'author. Do not rewrite the claim yourself.',
+          properties: {
+            elementId: { type: 'string', description: 'The region carrying the claim, from read_slide.' },
+            claim: { type: 'string', maxLength: 200, description: 'The claim as it currently reads.' },
+            why: { type: 'string', maxLength: 300, description: 'What the new figure shows instead.' },
+          },
+          required: ['elementId', 'claim', 'why'],
+          additionalProperties: false,
+        },
       },
       required: ['slideId', 'source', 'asOf'], additionalProperties: false,
     },
     // hands back data the agent fetched from outside this page
     annotations: { untrustedContentHint: true },
-    execute: async ({ slideId, value, unit, source, asOf }: any) => {
+    execute: async ({ slideId, value, unit, source, asOf, contradicts }: any) => {
       const s = store.getSlide(slideId);
       if (!s) return fail('NOT_FOUND', `No slide "${slideId}".`, { knownSlideIds: slideIds() });
       const patch: Record<string, unknown> = { source, asOf };
       if (value !== undefined) patch.value = value;
       if (unit !== undefined) patch.unit = unit;
       store.updateSlideProps(slideId, patch);
-      return ok({ slideId, wrote: Object.keys(patch) });
+
+      let raised = false;
+      if (contradicts) {
+        const regions = registry[s.type].elements;
+        if (!regions.includes(contradicts.elementId))
+          return fail('INVALID_INPUT',
+            `"${contradicts.elementId}" is not a region on this slide.`,
+            { regionsOnThisSlide: regions, wroteFigureAnyway: true });
+        store.raiseConflict(slideId, contradicts);
+        raised = true;
+      }
+      return ok({
+        slideId, wrote: Object.keys(patch), conflictRaised: raised,
+        ...(raised && { note: 'Flagged for the author. The claim was not rewritten.' }),
+      });
     },
   },
 
@@ -348,8 +376,22 @@ const conditionalTools: Record<string, Reg> = {
  * visitor without an agent still sees the loop run — through the real
  * implementations, not a mock of them.
  */
+/** Wrap every execute so each invocation shows up in the on-page trail. */
+function traced(t: Reg): Exec {
+  return async (input, opts) => {
+    const r = await t.execute(input, opts);
+    const detail = r?.ok === false
+      ? String(r.error?.code ?? 'error')
+      : Object.entries(input ?? {}).slice(0, 2)
+          .map(([k, v]) => `${k}=${String(Array.isArray(v) ? `${v.length} items` : v).slice(0, 22)}`)
+          .join(' ');
+    store.logCall(t.name, r?.ok !== false, detail);
+    return r;
+  };
+}
+
 export const callable: Record<string, Exec> = Object.fromEntries(
-  [...baseTools, ...Object.values(conditionalTools)].map(t => [t.name, t.execute]),
+  [...baseTools, ...Object.values(conditionalTools)].map(t => [t.name, traced(t)]),
 );
 
 /* ------------------------------------------------------------------ *
@@ -370,7 +412,7 @@ async function register(t: Reg, signal: AbortSignal) {
     {
       name: t.name, title: t.title, description: t.description,
       inputSchema: t.inputSchema, annotations: t.annotations,
-      execute: (input: any, opts: any) => t.execute(input, opts),
+      execute: (input: any, opts: any) => traced(t)(input, opts),
     },
     { signal },
   );

@@ -54,15 +54,22 @@ export function buildScript(): Step[] {
         say: 'attaching a sourced figure', slideId: a.slideId,
         run: () => callable.attach_research({
           slideId: a.slideId,
-          source: 'HYBE Q2 2026 consolidated results',
-          asOf: '2026 Q2',
+          source: 'HYBE FY2025 annual report (DART)',
+          asOf: 'FY2025',
+          contradicts: {
+            elementId: 'title',
+            claim: "Fandom Platform Economics: Subscription Pays, Commerce Doesn't",
+            why: 'The loss framing came from FY2024. Weverse Company turned an operating '
+              + 'profit of about ₩2.0B on ₩299.7B revenue in FY2025, so "commerce doesn\'t pay" '
+              + 'no longer follows from the figures on this slide.',
+          },
         }),
       });
       steps.push({
         say: 'noting what it could not verify', slideId: a.slideId,
         run: () => callable.reply_to_annotation({
           annotationId: a.id,
-          body: 'Panel now cites 2026 Q2. Segment-level operating loss is not broken out in that filing — flagging rather than estimating.',
+          body: 'Updated to FY2025 and flagged the headline: the loss it rests on is a 2024 number. Rewriting an argument is your call, not mine.',
         }),
       });
     }

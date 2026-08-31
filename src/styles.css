@@ -178,3 +178,52 @@ button{font:inherit;cursor:pointer;border:0;background:none;color:inherit}
 .q-l{flex:1;font-size:11.5px;color:#9c8b74}
 .q-x{font-size:10.5px;color:#b8a58a;text-decoration:underline}
 .q-x:hover{color:#c2703a}
+
+/* ---------- selection, actions, toolbar ---------- */
+
+.hit{fill:none;stroke:transparent;stroke-width:20;stroke-linecap:round;
+  pointer-events:stroke;cursor:pointer}
+.mark .stroke,.mark .lead{transition:opacity .12s,stroke-width .12s}
+.mark.on .stroke{stroke-width:3.6}
+.mark.on .lead{opacity:.85}
+.mark.done .hit{cursor:pointer}
+
+.scribble{pointer-events:auto;cursor:pointer;padding:3px 5px;margin:-3px -5px;border-radius:7px}
+.scribble:hover{background:rgba(255,255,255,.72)}
+.scribble.on{background:#fffdf7;box-shadow:0 0 0 1px #e6dfc9,0 6px 20px rgba(13,27,74,.1)}
+
+.mark-acts{display:flex;gap:4px;margin-top:6px;text-transform:none}
+.mark-acts button{
+  padding:3px 8px;border-radius:6px;background:#f0ece0;color:#7a7360;
+  font:500 10px Inter,sans-serif;letter-spacing:.02em;
+}
+.mark-acts button:hover{background:#e6e0cf;color:#4a4436}
+.mark-acts button.danger:hover{background:#fbe3dd;color:#b3452a}
+
+.se-hit-row{margin-top:4px}
+.se-foot{border-top:1px solid #eee6d2}
+.se-redo{font:10px Inter,sans-serif;color:#a29a85;text-decoration:underline}
+.se-redo:hover{color:#7a7360}
+.se-key kbd{
+  font:9.5px ui-monospace,Menlo,monospace;background:#f0ece0;border-radius:3px;
+  padding:1px 4px;color:#8a8370;
+}
+
+.toolbar{
+  display:flex;align-items:center;gap:8px;margin-top:14px;padding:7px 12px;
+  background:var(--surface);border:1px solid var(--line);border-radius:11px;
+  box-shadow:0 1px 2px rgba(13,27,74,.04);
+}
+.toolbar button{
+  padding:4px 10px;border-radius:7px;font:500 11.5px Inter,sans-serif;
+  color:var(--muted);background:#f4f6fb;
+}
+.toolbar button:hover:not(:disabled){background:#e9eef8;color:var(--ink)}
+.toolbar button:disabled{opacity:.38;cursor:not-allowed}
+.tb-sep{width:1px;height:15px;background:var(--line)}
+.tb-hint{font-size:11.5px;color:var(--muted)}
+
+/* keyboard users need to see where they are */
+button:focus-visible,textarea:focus-visible,.scribble:focus-visible{
+  outline:2px solid var(--primary);outline-offset:2px;border-radius:6px;
+}

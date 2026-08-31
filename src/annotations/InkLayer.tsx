@@ -1,5 +1,5 @@
-import { useRef, useState } from 'react';
-import type { AnnotationKind, Pt, Target } from '../deck/types';
+import { useEffect, useRef, useState } from 'react';
+import type { Annotation, AnnotationKind, Pt, Target } from '../deck/types';
 import { decimate, toPath, centroid, nearestPoint, resolveTargets, leaderPath } from './ink';
 import * as store from './store';
 
@@ -10,23 +10,28 @@ const KINDS: { k: AnnotationKind; label: string }[] = [
 
 interface Draft { stroke: Pt[]; targets: Target[]; labelAt: Pt }
 
-/**
- * You mark the deck the way you'd mark paper: circle it, then write in the
- * margin. The stroke is captured over the whole canvas, so notes live in the
- * whitespace and point inward.
- */
-export function InkLayer({ slideId, canvasRef, slideRef, annotations, onDone }: {
+export function InkLayer({ slideId, canvasRef, slideRef, annotations, selected, onDone }: {
   slideId: string;
   canvasRef: React.RefObject<HTMLDivElement | null>;
   slideRef: React.RefObject<HTMLDivElement | null>;
-  annotations: any[];
+  annotations: Annotation[];
+  selected: string | null;
   onDone: () => void;
 }) {
   const [live, setLive] = useState<Pt[] | null>(null);
   const [draft, setDraft] = useState<Draft | null>(null);
   const [kind, setKind] = useState<AnnotationKind>('fix');
   const [body, setBody] = useState('');
+  const [hover, setHover] = useState<string | null>(null);
   const drawing = useRef(false);
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') { setDraft(null); setLive(null); store.select(null); }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, []);
 
   const canvasPt = (e: React.PointerEvent): Pt => {
     const r = canvasRef.current!.getBoundingClientRect();
@@ -35,6 +40,7 @@ export function InkLayer({ slideId, canvasRef, slideRef, annotations, onDone }: 
 
   const down = (e: React.PointerEvent) => {
     if (draft) return;
+    store.select(null);
     drawing.current = true;
     (e.target as Element).setPointerCapture?.(e.pointerId);
     setLive([canvasPt(e)]);
@@ -43,27 +49,26 @@ export function InkLayer({ slideId, canvasRef, slideRef, annotations, onDone }: 
     if (!drawing.current) return;
     setLive(s => (s ? [...s, canvasPt(e)] : s));
   };
-  const up = () => {
+
+  const finish = () => {
     drawing.current = false;
     const pts = decimate(live ?? []);
     setLive(null);
-    if (pts.length < 4) return;                       // ignore taps
+    if (pts.length < 4) return;                      // a tap is not a mark
 
     const canvas = canvasRef.current!, slide = slideRef.current!;
     const cRect = canvas.getBoundingClientRect(), sRect = slide.getBoundingClientRect();
     const off = { x: sRect.left - cRect.left, y: sRect.top - cRect.top };
-
-    // resolve in slide space
-    const inSlide = pts.map(p => ({ x: p.x - off.x, y: p.y - off.y }));
-    const targets = resolveTargets(inSlide, slide);
+    const targets = resolveTargets(pts.map(p => ({ x: p.x - off.x, y: p.y - off.y })), slide);
 
     const c = centroid(pts);
-    // put the note in whichever margin is roomier
     const right = c.x < cRect.width / 2;
     setDraft({
-      stroke: pts,
-      targets,
-      labelAt: { x: right ? Math.min(cRect.width - 210, c.x + 150) : Math.max(14, c.x - 260), y: c.y - 26 },
+      stroke: pts, targets,
+      labelAt: {
+        x: right ? Math.min(cRect.width - 200, c.x + 170) : Math.max(10, c.x - 270),
+        y: Math.max(8, Math.min(cRect.height - 110, c.y - 26)),
+      },
     });
     setBody('');
   };
@@ -75,7 +80,6 @@ export function InkLayer({ slideId, canvasRef, slideRef, annotations, onDone }: 
     const off = { x: sRect.left - cRect.left, y: sRect.top - cRect.top };
     store.addAnnotation({
       slideId, kind, body: body.trim(), targets: draft.targets,
-      // normalize: stroke to the slide box, label to the canvas box
       stroke: draft.stroke.map(p => ({
         x: (p.x - off.x) / sRect.width, y: (p.y - off.y) / sRect.height,
       })),
@@ -90,51 +94,73 @@ export function InkLayer({ slideId, canvasRef, slideRef, annotations, onDone }: 
     ? { x: sRect.left - cRect.left, y: sRect.top - cRect.top, w: sRect.width, h: sRect.height }
     : null;
 
+  const geom = (a: Annotation) => {
+    const pts = a.stroke.map(p => ({ x: p.x * off!.w + off!.x, y: p.y * off!.h + off!.y }));
+    const lab = { x: a.labelAt.x * cRect!.width, y: a.labelAt.y * cRect!.height };
+    return { pts, lab, anchor: { x: lab.x + 84, y: lab.y + 22 } };
+  };
+
   return (
     <>
       <svg className="ink" onPointerDown={down} onPointerMove={move}
-        onPointerUp={up} onPointerLeave={up}>
+        onPointerUp={finish} onPointerLeave={finish}>
         <defs>
-          {/* a little wobble, so strokes read as drawn rather than plotted */}
           <filter id="rough" x="-12%" y="-12%" width="124%" height="124%">
             <feTurbulence type="fractalNoise" baseFrequency="0.028" numOctaves="2" seed="7" />
             <feDisplacementMap in="SourceGraphic" scale="2.4" xChannelSelector="R" yChannelSelector="G" />
           </filter>
         </defs>
-        {/* committed marks */}
-        {off && annotations.map((a) => {
-          const pts = a.stroke.map((p: Pt) => ({ x: p.x * off.w + off.x, y: p.y * off.h + off.y }));
-          const lab = cRect
-            ? { x: a.labelAt.x * cRect.width, y: a.labelAt.y * cRect.height }
-            : centroid(pts);
-          const anchor = { x: lab.x + 84, y: lab.y + 22 };
-          const tip = nearestPoint(pts, anchor);
+
+        {off && cRect && annotations.map(a => {
+          const { pts, anchor } = geom(a);
+          const on = selected === a.id || hover === a.id;
           return (
-            <g key={a.id} className={`mark k-${a.kind}${a.status === 'resolved' ? ' done' : ''}`}>
-              <path className="lead" d={leaderPath(anchor, tip)} />
+            <g key={a.id}
+              className={`mark k-${a.kind}${a.status === 'resolved' ? ' done' : ''}${on ? ' on' : ''}`}>
+              <path className="lead" d={leaderPath(anchor, nearestPoint(pts, anchor))} />
               <path className="stroke" d={toPath(pts)} />
+              {/* fat invisible path so the thin ink is actually clickable */}
+              <path className="hit" d={toPath(pts)}
+                onPointerDown={e => { e.stopPropagation(); store.select(a.id); }}
+                onPointerEnter={() => setHover(a.id)}
+                onPointerLeave={() => setHover(h => (h === a.id ? null : h))} />
             </g>
           );
         })}
-        {/* stroke in progress */}
+
         {live && live.length > 1 && (
           <path className={`stroke live k-${kind}`} d={toPath(decimate(live))} />
         )}
         {draft && <path className={`stroke k-${kind}`} d={toPath(draft.stroke)} />}
       </svg>
 
-      {/* committed note text, sitting in the margin */}
-      {cRect && annotations.map((a) => (
-        <div key={a.id}
-          className={`scribble k-${a.kind}${a.status === 'resolved' ? ' done' : ''}`}
-          style={{ left: a.labelAt.x * cRect.width, top: a.labelAt.y * cRect.height }}>
-          <span className="scribble-kind">{a.kind}</span>
-          {a.body}
-          {a.replies.map((r: any) => (
-            <span key={r.id} className="scribble-reply">↳ {r.body}</span>
-          ))}
-        </div>
-      ))}
+      {cRect && annotations.map(a => {
+        const { lab } = geom(a);
+        const on = selected === a.id;
+        return (
+          <div key={a.id}
+            className={`scribble k-${a.kind}${a.status === 'resolved' ? ' done' : ''}${on ? ' on' : ''}`}
+            style={{ left: lab.x, top: lab.y }}
+            onPointerDown={e => { e.stopPropagation(); store.select(on ? null : a.id); }}
+            onPointerEnter={() => setHover(a.id)}
+            onPointerLeave={() => setHover(h => (h === a.id ? null : h))}>
+            <span className="scribble-kind">{a.kind}</span>
+            {a.body}
+            {a.replies.map(r => (
+              <span key={r.id} className="scribble-reply">↳ {r.body}</span>
+            ))}
+            {on && (
+              <div className="mark-acts" onPointerDown={e => e.stopPropagation()}>
+                {a.status === 'open'
+                  ? <button onClick={() => { store.resolveAnnotation(a.id); store.select(null); }}>✓ resolve</button>
+                  : <button onClick={() => store.reopenAnnotation(a.id)}>↺ reopen</button>}
+                <button className="danger"
+                  onClick={() => { store.removeAnnotation(a.id); store.select(null); }}>✕ delete</button>
+              </div>
+            )}
+          </div>
+        );
+      })}
 
       {draft && (
         <div className="scribble-edit" style={{ left: draft.labelAt.x, top: draft.labelAt.y }}>
@@ -148,13 +174,15 @@ export function InkLayer({ slideId, canvasRef, slideRef, annotations, onDone }: 
             onChange={e => setBody(e.target.value)}
             onKeyDown={e => {
               if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); commit(); }
-              if (e.key === 'Escape') setDraft(null);
             }} />
-          <div className="se-foot">
+          <div className="se-hit-row">
             {draft.targets.length
               ? <span className="se-hit">on {draft.targets.map(t => t.label).slice(0, 2).join(', ')}</span>
               : <span className="se-hit dim">nothing under the mark</span>}
-            <span className="se-key">↵ to pin</span>
+          </div>
+          <div className="se-foot">
+            <button className="se-redo" onClick={() => setDraft(null)}>redraw</button>
+            <span className="se-key"><kbd>esc</kbd> cancel · <kbd>↵</kbd> pin</span>
           </div>
         </div>
       )}

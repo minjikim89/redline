@@ -45,6 +45,25 @@ export default function App() {
     return () => window.removeEventListener('resize', on);
   }, []);
 
+  // Undo is table stakes on a drawing surface.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      const el = e.target as HTMLElement;
+      if (el?.tagName === 'TEXTAREA' || el?.tagName === 'INPUT') return;
+      const mod = e.metaKey || e.ctrlKey;
+      if (mod && e.key.toLowerCase() === 'z') {
+        e.preventDefault();
+        e.shiftKey ? store.redo() : store.undo();
+      }
+      if (!mod && (e.key === 'ArrowRight' || e.key === 'ArrowLeft')) {
+        setCurrent(c => Math.min(Math.max(c + (e.key === 'ArrowRight' ? 1 : -1), 0),
+          store.getState().deck.slides.length - 1));
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, []);
+
   const perSlide = useMemo(() => {
     const m = new Map<string, number>();
     s.annotations.filter(a => a.status === 'open')
@@ -79,10 +98,7 @@ export default function App() {
           <span className="q-n">{openCount}</span>
           <span className="q-l">{openCount === 1 ? 'note open' : 'notes open'}</span>
           {openCount > 0 && (
-            <button className="q-x" onClick={() => s.annotations
-              .filter(a => a.status === 'open').forEach(a => store.removeAnnotation(a.id))}>
-              clear
-            </button>
+            <button className="q-x" onClick={() => store.clearOpen()}>clear</button>
           )}
         </div>
 
@@ -113,14 +129,21 @@ export default function App() {
             canvasRef={canvasRef}
             slideRef={slideRef}
             annotations={marks}
+            selected={s.selected}
             onDone={() => setTick(t => t + 1)}
           />
         </div>
 
-        <p className="hint">
-          Circle anything on the slide, then write in the margin. The mark resolves to
-          what's under it, so your agent knows exactly what you meant.
-        </p>
+        <div className="toolbar">
+          <button disabled={!store.canUndo()} onClick={() => store.undo()}
+            title="Undo (⌘Z)">↶ undo</button>
+          <button disabled={!store.canRedo()} onClick={() => store.redo()}
+            title="Redo (⇧⌘Z)">↷ redo</button>
+          <span className="tb-sep" />
+          <span className="tb-hint">
+            Circle anything, then write in the margin. Click a mark to resolve or delete it.
+          </span>
+        </div>
       </main>
     </div>
   );

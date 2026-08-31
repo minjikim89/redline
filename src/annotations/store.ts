@@ -22,7 +22,41 @@ const listeners = new Set<() => void>();
 const emit = () => listeners.forEach(l => l());
 export const subscribe = (l: () => void) => { listeners.add(l); return () => { listeners.delete(l); }; };
 export const getState = () => state;
-const set = (next: Partial<State>) => { state = { ...state, ...next }; emit(); };
+
+/* ---------- history ---------- *
+ * Snapshot-based. A review surface where you cannot take a mark back is not
+ * a review surface. Every mutation below goes through `set`, so undo is total.
+ */
+const past: State[] = [];
+const future: State[] = [];
+const LIMIT = 60;
+
+const set = (next: Partial<State>) => {
+  past.push(state);
+  if (past.length > LIMIT) past.shift();
+  future.length = 0;
+  state = { ...state, ...next };
+  emit();
+};
+
+export function undo() {
+  const prev = past.pop();
+  if (!prev) return;
+  future.push(state);
+  state = prev;
+  emit();
+}
+
+export function redo() {
+  const next = future.pop();
+  if (!next) return;
+  past.push(state);
+  state = next;
+  emit();
+}
+
+export const canUndo = () => past.length > 0;
+export const canRedo = () => future.length > 0;
 
 const uid = (p: string) => `${p}_${Math.random().toString(36).slice(2, 9)}`;
 const now = () => new Date().toISOString();
@@ -84,4 +118,19 @@ export function removeAnnotation(id: string) {
   set({ annotations: state.annotations.filter(a => a.id !== id) });
 }
 
-export const select = (id: string | null) => set({ selected: id });
+/** Selection is transient UI, not an edit — keep it out of the undo stack. */
+export const select = (id: string | null) => {
+  state = { ...state, selected: id };
+  emit();
+};
+
+export function reopenAnnotation(id: string) {
+  set({
+    annotations: state.annotations.map(a =>
+      a.id === id ? { ...a, status: 'open' as const } : a),
+  });
+}
+
+export function clearOpen() {
+  set({ annotations: state.annotations.filter(a => a.status !== 'open') });
+}

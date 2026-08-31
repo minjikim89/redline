@@ -195,7 +195,7 @@ export function InkLayer({ slideId, mode, canvasRef, slideRef, annotations, sele
             onPointerEnter={() => setHover(a.id)}
             onPointerLeave={() => setHover(h => (h === a.id ? null : h))}>
             <span className="scribble-kind">{a.kind}</span>
-            {a.body}
+            <span className={a.status === 'resolved' ? 'sb-body struck' : 'sb-body'}>{a.body}</span>
             {a.replies.map(r => (
               <span key={r.id} className="scribble-reply">↳ {r.body}</span>
             ))}

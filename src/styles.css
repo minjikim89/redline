@@ -78,7 +78,8 @@ button{font:inherit;cursor:pointer;border:0;background:none;color:inherit}
 .h2{font-size:58px;font-weight:600;line-height:1.15;letter-spacing:-.015em;max-width:1500px}
 .sheet-body{flex:1;display:flex;flex-direction:column;justify-content:center;min-height:0}
 /* structures that should breathe into the full body height */
-.sheet-body>.cards,.sheet-body>.tline,.sheet-body>.refs,.sheet-body>.flow-wrap{flex:1}
+.sheet-body>.cards,.sheet-body>.tline,.sheet-body>.refs,.sheet-body>.flow-wrap,
+.sheet-body>.figs{flex:1}
 .cards{align-content:stretch}
 .tline{justify-content:space-between}
 .refs{align-content:start}
@@ -149,10 +150,10 @@ button{font:inherit;cursor:pointer;border:0;background:none;color:inherit}
 .note-sub{margin:0;font-size:28px;font-weight:300;line-height:1.45;color:var(--mut)}
 
 /* 06 figures */
-.figs{width:100%}
-.fig-cards{display:grid;grid-template-columns:repeat(3,1fr);gap:40px}
+.figs{width:100%;display:flex;flex-direction:column;justify-content:center}
+.fig-cards{display:grid;grid-template-columns:repeat(3,1fr);gap:40px;flex:1;align-items:stretch}
 .fig-card{background:var(--white);padding:44px 40px;display:flex;flex-direction:column;gap:22px;
-  border-radius:10px}
+  border-radius:10px;justify-content:flex-start}
 .fig-tag{font-size:24px;font-weight:500;letter-spacing:.1em}
 .fig-head{font-size:34px;font-weight:600}
 .fig-value{font-size:96px;font-weight:600;letter-spacing:-.03em;line-height:1}
@@ -164,12 +165,18 @@ button{font:inherit;cursor:pointer;border:0;background:none;color:inherit}
 .fig-legend i{width:22px;height:22px;border-radius:4px;flex:none}
 .fig-legend span{color:var(--mut)}
 .fig-legend b{font-weight:600;margin-left:auto;padding-left:48px;font-variant-numeric:tabular-nums}
-.fig-cols{display:flex;align-items:flex-end;gap:80px;height:340px;padding:0 80px}
-.fig-col{flex:1;display:flex;flex-direction:column;align-items:center;gap:14px}
-.fig-col>div{width:100%;border-radius:5px 5px 0 0;transition:height .5s}
-.fig-col-v{font-size:52px;font-weight:600;letter-spacing:-.02em}
-.fig-col-l{font-size:28px;color:var(--mut)}
-.fig-notes{display:flex;gap:70px;width:100%}
+.fig-plotwrap{flex:1;display:flex;flex-direction:column;justify-content:flex-end;
+  padding:0 160px;max-height:470px}
+.fig-plot{flex:1;display:grid;grid-template-columns:repeat(3,1fr);gap:120px;
+  align-items:end;border-bottom:2px solid #D6DBE4}
+.fig-col{display:flex;flex-direction:column;align-items:center;gap:16px;
+  justify-content:flex-end;height:100%}
+.fig-col>div{width:100%;max-width:180px;border-radius:6px 6px 0 0;
+  transition:height .5s cubic-bezier(.2,.8,.2,1)}
+.fig-col-v{font-size:50px;font-weight:600;letter-spacing:-.025em}
+.fig-labels{display:grid;grid-template-columns:repeat(3,1fr);gap:120px;padding-top:18px}
+.fig-labels span{font-size:28px;color:var(--mut);text-align:center;line-height:1.3}
+.fig-notes{display:flex;gap:70px;width:100%;padding-top:34px}
 .fig-notes p{margin:0;flex:1;font-size:30px;font-weight:300;line-height:1.4;color:var(--mut)}
 
 /* 08 panels */
@@ -222,7 +229,7 @@ button{font:inherit;cursor:pointer;border:0;background:none;color:inherit}
 .mark.k-visualize{color:#9000FF}.mark.k-explain{color:#0E9C7E}
 .mark.on .stroke{stroke-width:3.8}
 .mark.on .lead{opacity:.8}
-.mark.done{opacity:.24}
+.mark.done{opacity:.3}
 .stroke.k-fix{stroke:#E0761F}.stroke.k-research{stroke:#1D6BE0}
 .stroke.k-visualize{stroke:#9000FF}.stroke.k-explain{stroke:#0E9C7E}
 
@@ -233,11 +240,13 @@ button{font:inherit;cursor:pointer;border:0;background:none;color:inherit}
 .scribble.k-visualize{color:#6410B8}.scribble.k-explain{color:#0A6B57}
 .scribble:hover{background:rgba(255,255,255,.8)}
 .scribble.on{background:#FFFDF6;box-shadow:0 0 0 1px #E8E0C9,0 8px 24px rgba(11,11,18,.12)}
-.scribble.done{opacity:.3;text-decoration:line-through}
+.scribble.done{opacity:.5}
+.scribble.done>span:first-child,.scribble.done{text-decoration:none}
+.scribble.done .scribble-kind{text-decoration:none}
 .scribble-kind{display:block;font:600 8.5px 'IBM Plex Sans';letter-spacing:.17em;
   opacity:.52;margin-bottom:2px}
-.scribble-reply{display:block;margin-top:6px;padding-left:8px;font-size:13.5px;
-  border-left:2px solid currentColor;opacity:.75;text-transform:none}
+.scribble-reply{display:block;margin-top:7px;padding-left:9px;font-size:13.5px;
+  border-left:2px solid currentColor;opacity:.92;text-transform:none;line-height:1.36}
 .mark-acts{display:flex;gap:4px;margin-top:7px;text-transform:none}
 .mark-acts button{padding:3px 8px;border-radius:6px;background:#F1EDE1;color:#7A7360;
   font:500 10px 'IBM Plex Sans'}
@@ -271,3 +280,11 @@ button{font:inherit;cursor:pointer;border:0;background:none;color:inherit}
 
 button:focus-visible,textarea:focus-visible{outline:2px solid var(--pink);outline-offset:2px;
   border-radius:6px}
+
+.replay{background:#FDE7F8;color:#A8007F;font-weight:600}
+.replay:hover:not(:disabled){background:#FBD5F1;color:#8A0068}
+.replay.on{background:var(--pink);color:#fff}
+.replay.on:hover{background:#E000B2;color:#fff}
+.tb-hint.saying{color:var(--pink);font-weight:500}
+.sb-body{display:block}
+.sb-body.struck{text-decoration:line-through;opacity:.7}

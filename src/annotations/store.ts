@@ -144,6 +144,13 @@ export function reopenAnnotation(id: string) {
   });
 }
 
+/** Put the deck and the queue back to how the page opened. */
+export function reset() {
+  past.length = 0; future.length = 0;
+  state = { deck: sampleDeck, annotations: seedAnnotations.map(a => ({ ...a })), selected: null };
+  emit();
+}
+
 export function clearOpen() {
   set({ annotations: state.annotations.filter(a => a.status !== 'open') });
 }

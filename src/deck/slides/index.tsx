@@ -172,14 +172,18 @@ export function FiguresSlide({ kicker, accent, title, chartForm = 'pie', items, 
             </ul>
           </div>
         ) : chartForm === 'column' ? (
-          <div className="fig-cols">
-            {items?.map((it: any, i: number) => (
-              <div className="fig-col" key={it.tag}>
-                <span className="fig-col-v">{it.figure}</span>
-                <div style={{ height: `${(it.value / max) * 260}px`, background: colors[i % 3] }} />
-                <span className="fig-col-l">{it.head}</span>
-              </div>
-            ))}
+          <div className="fig-plotwrap">
+            <div className="fig-plot">
+              {items?.map((it: any, i: number) => (
+                <div className="fig-col" key={it.tag}>
+                  <span className="fig-col-v">{it.figure}</span>
+                  <div style={{ height: `${(it.value / max) * 100}%`, background: colors[i % 3] }} />
+                </div>
+              ))}
+            </div>
+            <div className="fig-labels">
+              {items?.map((it: any) => <span key={it.tag}>{it.head}</span>)}
+            </div>
           </div>
         ) : (
           <div className="fig-cards">

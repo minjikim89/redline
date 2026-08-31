@@ -4,6 +4,7 @@ import { ARTBOARD } from './deck/theme';
 import { InkLayer, type Mode } from './annotations/InkLayer';
 import * as store from './annotations/store';
 import { registerAll, syncConditionalTools, webmcpSupported } from './webmcp/tools';
+import { buildScript, runScript } from './annotations/replay';
 
 export default function App() {
   const s = useSyncExternalStore(store.subscribe, store.getState);
@@ -16,6 +17,8 @@ export default function App() {
   const [supported, setSupported] = useState<boolean | null>(null);
   const [scale, setScale] = useState(0.5);
   const [tick, setTick] = useState(0);
+  const [saying, setSaying] = useState<string | null>(null);
+  const replayCtl = useRef<AbortController | null>(null);
 
   const fitRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLDivElement>(null);
@@ -43,6 +46,21 @@ export default function App() {
   }, []);
 
   useEffect(() => { registerAll().then(r => { setSupported(r.supported); setTools(r.tools); }); }, []);
+
+  // ?replay=1 starts the pass on load — used for recording and for checks.
+  // The guard lives inside the timer, so StrictMode's mount/cleanup/mount
+  // cycle cannot cancel the only scheduled start.
+  const toggleReplayRef = useRef<(() => void) | null>(null);
+  const started = useRef(false);
+  useEffect(() => {
+    if (!new URLSearchParams(location.search).has('replay')) return;
+    const t = setTimeout(() => {
+      if (started.current) return;
+      started.current = true;
+      toggleReplayRef.current?.();
+    }, 700);
+    return () => clearTimeout(t);
+  }, []);
 
   useEffect(() => {
     syncConditionalTools().then(async () => {
@@ -82,6 +100,31 @@ export default function App() {
       .forEach(a => m.set(a.slideId, (m.get(a.slideId) ?? 0) + 1));
     return m;
   }, [s.annotations]);
+
+  const replaying = saying !== null;
+
+  /* A visitor without an agent still needs to see the loop close. This runs the
+     real tool implementations in the order an agent calls them — scripted, and
+     labelled as such, but not faked. */
+  const toggleReplay = async () => {
+    if (replayCtl.current) { replayCtl.current.abort(); replayCtl.current = null; setSaying(null); return; }
+    store.reset();
+    const ac = new AbortController();
+    replayCtl.current = ac;
+    const steps = buildScript();
+    try {
+      await runScript(steps, (_i, st) => {
+        setSaying(st.say);
+        if (st.slideId) {
+          const idx = store.getState().deck.slides.findIndex(x => x.id === st.slideId);
+          if (idx >= 0) setCurrent(idx);
+        }
+      }, ac.signal);
+    } catch { /* stopped */ }
+    if (replayCtl.current === ac) { replayCtl.current = null; setSaying(null); }
+  };
+
+  toggleReplayRef.current = toggleReplay;
 
   const marks = s.annotations.filter(a => a.slideId === slide.id);
   const openCount = s.annotations.filter(a => a.status === 'open').length;
@@ -154,10 +197,16 @@ export default function App() {
           <button disabled={!store.canUndo()} onClick={() => store.undo()} title="Undo ⌘Z">↶ undo</button>
           <button disabled={!store.canRedo()} onClick={() => store.redo()} title="Redo ⇧⌘Z">↷ redo</button>
           <span className="tb-sep" />
-          <span className="tb-hint">
-            {mode === 'draw'
-              ? 'Circle anything on the slide, then write in the margin.'
-              : 'Drag a mark or a note to reposition it. Press P to draw again.'}
+          <button className={replaying ? 'replay on' : 'replay'} onClick={toggleReplay}>
+            {replaying ? '■ stop' : '▶ watch a pass'}
+          </button>
+          <span className="tb-sep" />
+          <span className={replaying ? 'tb-hint saying' : 'tb-hint'}>
+            {replaying
+              ? `${saying} · scripted, running the real tools`
+              : mode === 'draw'
+                ? 'Circle anything on the slide, then write in the margin.'
+                : 'Drag a mark or a note to reposition it. Press P to draw again.'}
           </span>
         </div>
       </main>

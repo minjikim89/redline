@@ -339,6 +339,15 @@ const conditionalTools: Record<string, Reg> = {
   },
 };
 
+/**
+ * The same tool bodies, callable locally. Used by the scripted replay so a
+ * visitor without an agent still sees the loop run — through the real
+ * implementations, not a mock of them.
+ */
+export const callable: Record<string, Exec> = Object.fromEntries(
+  [...baseTools, ...Object.values(conditionalTools)].map(t => [t.name, t.execute]),
+);
+
 /* ------------------------------------------------------------------ *
  * Registration
  * ------------------------------------------------------------------ */

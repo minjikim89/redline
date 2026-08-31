@@ -2,6 +2,7 @@ import { useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalS
 import { registry } from './deck/registry';
 import { EditCtx } from './deck/slideKit';
 import { Inspector } from './deck/Inspector';
+import { Start } from './Start';
 import { ARTBOARD } from './deck/theme';
 import { InkLayer, type Mode } from './annotations/InkLayer';
 import * as store from './annotations/store';
@@ -35,6 +36,11 @@ export default function App() {
   const [fit, setFit] = useState(0.5);
   const [zoom, setZoom] = useState(1);
   const [insp, setInsp] = useState(false);
+  const [entered, setEntered] = useState(
+    () => new URLSearchParams(location.search).has('deck')
+      || new URLSearchParams(location.search).has('replay')
+      || new URLSearchParams(location.search).has('slide'),
+  );
   const [tick, setTick] = useState(0);
   const [saying, setSaying] = useState<string | null>(null);
   const replayCtl = useRef<AbortController | null>(null);
@@ -170,6 +176,8 @@ export default function App() {
   const marks = s.annotations.filter(a => a.slideId === slide.id);
   const openCount = s.annotations.filter(a => a.status === 'open').length;
   const W = ARTBOARD.w * scale, H = ARTBOARD.h * scale;
+
+  if (!entered) return <Start onEnter={() => setEntered(true)} />;
 
   return (
     <div className={insp ? 'app with-insp' : 'app'}>

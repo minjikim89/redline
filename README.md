@@ -51,7 +51,23 @@ parties are looking at the same surface.
 
 ## Implementation
 
-### The deck is a typed model. There is no HTML escape hatch.
+### Bringing a deck in
+
+Redline does not generate slides. The entry screen takes an exported HTML deck and
+reads its sections into the typed model — `src/deck/importHtml.ts`. The mapping is
+conservative on purpose: it claims a slide type only when the structure is
+unambiguous (a cover, a single dominant figure, a references page) and otherwise
+leaves the text as prose, because a confident wrong guess is worse than a plain
+slide. The import report says how many sections it read and what it made of them.
+
+That is the architectural claim made concrete: **the model is the contract.** Any
+tool that emits slides can hand work over, and the agent picks it up with the same
+tools, because the tools are typed against the model rather than against a format.
+
+`?import=<url>` runs the same parser on a hosted file. A sample export ships at
+`/exported-deck-sample.html`.
+
+## The deck is a typed model. There is no HTML escape hatch.
 
 Slides are React components with declared prop schemas
 ([`src/deck/registry.ts`](src/deck/registry.ts)). That does two jobs:
@@ -169,6 +185,22 @@ scripted pass on load.
 by calling the same tool implementations in the order an agent calls them. It is
 labelled as scripted in the UI because it is: the tool calls are real, the sentences
 the agent "says" are not. The demo video shows the real thing.
+
+## Bringing a deck in
+
+Redline does not generate slides. The entry screen takes an exported HTML deck and
+reads its sections into the typed model — `src/deck/importHtml.ts`. The mapping is
+conservative on purpose: it claims a slide type only when the structure is
+unambiguous (a cover, a single dominant figure, a references page) and otherwise
+leaves the text as prose, because a confident wrong guess is worse than a plain
+slide. The import report says how many sections it read and what it made of them.
+
+That is the architectural claim made concrete: **the model is the contract.** Any
+tool that emits slides can hand work over, and the agent picks it up with the same
+tools, because the tools are typed against the model rather than against a format.
+
+`?import=<url>` runs the same parser on a hosted file. A sample export ships at
+`/exported-deck-sample.html`.
 
 ## The deck
 

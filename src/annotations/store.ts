@@ -93,6 +93,13 @@ export function getSlide(slideId: string) {
 }
 
 /** Set a value at a dotted path, e.g. "title" or "cards.0.head". */
+/** Swap the whole deck, e.g. after an import. Clears notes, which belonged to the old one. */
+export function loadDeck(deck: Deck) {
+  past.length = 0; future.length = 0;
+  state = { deck, annotations: [], selected: null, calls: [] };
+  emit();
+}
+
 export function setTone(slideId: string, tone: 'light' | 'white' | 'dark' | 'accent') {
   const slides = state.deck.slides.map(x => x.id === slideId ? { ...x, tone } : x);
   set({ deck: { ...state.deck, slides } });

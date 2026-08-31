@@ -13,6 +13,13 @@ export const defaultTheme: Theme = {
 
 /** Categorical ramp for charts. Ordered so adjacent slices stay distinguishable. */
 export const series = [
-  '#3B82F6', '#06d6a0', '#67e8f9', '#f4a259', '#a78bfa',
-  '#f472b6', '#34d399', '#fbbf24', '#94a3b8',
+  '#3B82F6', // blue
+  '#f4a259', // orange
+  '#06d6a0', // teal
+  '#a78bfa', // violet
+  '#fbbf24', // amber
+  '#f472b6', // pink
+  '#0f766e', // deep teal
+  '#1e40af', // deep blue
+  '#94a3b8', // slate
 ];

@@ -10,7 +10,7 @@ export function Pie({ data, unit }: { data: Datum[]; unit: string }) {
 
   return (
     <div className="chart-row">
-      <svg viewBox="0 0 280 280" className="chart-svg" style={{ maxWidth: 280 }}>
+      <svg viewBox="0 0 280 280" className="chart-svg" style={{ maxWidth: 340 }}>
         {data.map((d, i) => {
           const sweep = (d.value / total) * Math.PI * 2;
           const [x1, y1] = [C + R * Math.cos(angle), C + R * Math.sin(angle)];

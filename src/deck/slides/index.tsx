@@ -16,7 +16,7 @@ function Frame({ title, kicker, source, asOf, children }: {
       {(source || asOf) && (
         <El id="source">
           <footer className="slide-source">
-            {source ?? 'Source: —'}{asOf ? ` · as of ${asOf}` : ''}
+            {source || 'Source: not cited'}{asOf ? ` · as of ${asOf}` : ''}
           </footer>
         </El>
       )}

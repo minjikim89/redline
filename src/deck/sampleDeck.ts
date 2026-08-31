@@ -28,14 +28,14 @@ export const sampleDeck: Deck = {
       kicker: 'The shift',
       value: '4.2', unit: '×',
       caption: 'Growth in Korean consumer-goods exports to markets where Korean content ranks top-10',
-      source: 'Source: PLACEHOLDER — replace with researched figure',
+      source: 'Source: [pending]',
     }},
 
     { id: 's3', type: 'flywheel', props: {
       kicker: 'The mechanism',
       title: 'Content earns attention. Attention moves product. Product funds content.',
       stages: ['Content', 'Attention', 'Search', 'Purchase', 'Reinvest'],
-      source: 'Source: PLACEHOLDER',
+      source: 'Source: [pending]',
     }},
 
     // [FLAW 3a] unit written as a word, source line formatted differently from s7/s10
@@ -49,7 +49,7 @@ export const sampleDeck: Deck = {
         { label: '2025', value: 88 },
       ],
       unit: ' titles',
-      source: 'PLACEHOLDER dataset',
+      source: 'Streaming chart data · [pending]',
     }},
 
     { id: 's5', type: 'timeSeries', props: {
@@ -61,7 +61,7 @@ export const sampleDeck: Deck = {
         { label: 'W8', value: 118 },
       ],
       unit: ' idx',
-      source: 'Source: PLACEHOLDER',
+      source: 'Source: [pending]',
     }},
 
     // [FLAW 1] Nine categories rendered as a pie. This is the hero fix.
@@ -80,8 +80,8 @@ export const sampleDeck: Deck = {
         { label: 'Stationery',       value: 16 },
         { label: 'Other',            value: 41 },
       ],
-      unit: 'B',
-      source: 'Source: PLACEHOLDER',
+      unit: 'B USD',
+      source: 'Source: [pending]',
       asOf: '2025',
     }},
 
@@ -95,14 +95,14 @@ export const sampleDeck: Deck = {
         { label: 'Italy', value: 6.9 },
       ],
       unit: '%',
-      source: 'Source: PLACEHOLDER trade data, 2025',
+      source: 'Trade data, 2025 · [pending]',
       asOf: '2025',
     }},
 
     // [FLAW 2] stale year, no source at all
     { id: 's8', type: 'bigNumber', props: {
       kicker: 'Platform layer',
-      value: '1.9', unit: 'B',
+      value: '1.9', unit: 'B USD',
       caption: 'Gross merchandise value across Korean fandom commerce platforms',
       source: '',
       asOf: '2024',
@@ -117,7 +117,7 @@ export const sampleDeck: Deck = {
         { label: '2026', value: 118 },
       ],
       unit: ' idx',
-      source: 'Source: PLACEHOLDER',
+      source: 'Source: [pending]',
     }},
 
     // [FLAW 3c] third variant of unit + source styling
@@ -129,7 +129,7 @@ export const sampleDeck: Deck = {
         { label: 'Japan (anime IP)',  value: 2.1 },
       ],
       unit: ' x',
-      source: 'est. PLACEHOLDER',
+      source: 'est. · [pending]',
     }},
   ],
 };

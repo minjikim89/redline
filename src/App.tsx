@@ -45,6 +45,7 @@ export default function App() {
     return () => ro.disconnect();
   }, []);
 
+  // main.tsx already registered; this only reads back what is live.
   useEffect(() => { registerAll().then(r => { setSupported(r.supported); setTools(r.tools); }); }, []);
 
   // ?replay=1 starts the pass on load — used for recording and for checks.

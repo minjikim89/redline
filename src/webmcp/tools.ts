@@ -238,14 +238,14 @@ const conditionalTools: Record<string, Reg> = {
     name: 'set_chart_form',
     title: 'Re-form a chart',
     description:
-      'Change the visual form a slide uses to draw its data. A pie reads well for two to '
-      + 'four parts of a whole; a sorted bar reads rank; a column reads change across a few '
-      + 'categories. Say which one the data wants and why.',
+      'Change the visual form a slide uses to draw its data. "pie" only holds when the values '
+      + 'are parts of one whole. "column" reads magnitude across a few categories. "cards" '
+      + 'gives each figure its own frame with its context. Say which one the data wants and why.',
     inputSchema: {
       type: 'object',
       properties: {
         slideId: { type: 'string' },
-        chartForm: { type: 'string', enum: ['pie', 'bar', 'column'] },
+        chartForm: { type: 'string', enum: ['cards', 'column', 'pie'] },
         rationale: { type: 'string', maxLength: 220, description: 'One line on why this form fits.' },
       },
       required: ['slideId', 'chartForm'], additionalProperties: false,
@@ -257,9 +257,13 @@ const conditionalTools: Record<string, Reg> = {
         return fail('NOT_APPLICABLE', `A ${s.type} slide has no chart form.`,
           { slidesWithChartForm: store.getState().deck.slides
               .filter(x => 'chartForm' in registry[x.type].propSchema).map(x => x.id) });
+      const allowed: string[] = registry[s.type].propSchema.chartForm?.enum ?? [];
+      if (!allowed.includes(chartForm))
+        return fail('INVALID_INPUT', `"${chartForm}" is not a form this slide can take.`,
+          { allowedForms: allowed });
       const before = s.props.chartForm;
       store.updateSlideProps(slideId, { chartForm });
-      return ok({ slideId, before, after: chartForm, categories: s.props.data?.length, rationale });
+      return ok({ slideId, before, after: chartForm, items: s.props.items?.length, rationale });
     },
   },
 

@@ -77,7 +77,7 @@ export function Start({ onEnter }: { onEnter: () => void }) {
         </label>
 
         <button className="st-try" disabled={busy}
-          onClick={() => takeUrl('/exported-deck-sample.html', 'Q3 Infrastructure Review.html')}>
+          onClick={() => takeUrl(`${import.meta.env.BASE_URL}exported-deck-sample.html`, 'Q3 Infrastructure Review.html')}>
           {busy ? 'reading…' : 'no file handy? try one'}
         </button>
 

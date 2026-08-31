@@ -72,6 +72,87 @@ export const registry: Record<SlideType, SlideDef> = {
       unit: { type: 'string' }, source: { type: 'string' }, asOf: { type: 'string' },
     },
   },
+  metrics: {
+    label: 'Reported figures, grouped into panels',
+    component: S.MetricsSlide,
+    elements: ['kicker', 'title', 'chart', 'source'],
+    propSchema: {
+      kicker: { type: 'string' }, title: { type: 'string' },
+      panels: {
+        type: 'array',
+        items: {
+          type: 'object',
+          properties: {
+            heading: { type: 'string' },
+            note: { type: 'string' },
+            metrics: {
+              type: 'array',
+              items: {
+                type: 'object',
+                properties: {
+                  value: { type: 'string' }, label: { type: 'string' },
+                  negative: { type: 'boolean' },
+                },
+                required: ['value', 'label'],
+              },
+            },
+          },
+          required: ['heading', 'metrics'],
+        },
+      },
+      source: { type: 'string' }, asOf: { type: 'string' },
+    },
+  },
+  timeline: {
+    label: 'Dated events on a spine',
+    component: S.TimelineSlide,
+    elements: ['kicker', 'title', 'chart', 'source'],
+    propSchema: {
+      kicker: { type: 'string' }, title: { type: 'string' },
+      events: {
+        type: 'array',
+        items: {
+          type: 'object',
+          properties: { year: { type: 'string' }, text: { type: 'string' } },
+          required: ['year', 'text'],
+        },
+      },
+      source: { type: 'string' },
+    },
+  },
+  points: {
+    label: 'Numbered arguments, the "so what"',
+    component: S.PointsSlide,
+    elements: ['kicker', 'title', 'chart'],
+    propSchema: {
+      kicker: { type: 'string' }, title: { type: 'string' },
+      points: {
+        type: 'array',
+        items: {
+          type: 'object',
+          properties: { head: { type: 'string' }, body: { type: 'string' } },
+          required: ['head', 'body'],
+        },
+      },
+      caveat: { type: 'string' },
+    },
+  },
+  sources: {
+    label: 'Where every figure came from',
+    component: S.SourcesSlide,
+    elements: ['kicker', 'title', 'chart'],
+    propSchema: {
+      kicker: { type: 'string' }, title: { type: 'string' },
+      groups: {
+        type: 'array',
+        items: {
+          type: 'object',
+          properties: { topic: { type: 'string' }, text: { type: 'string' } },
+          required: ['topic', 'text'],
+        },
+      },
+    },
+  },
   flywheel: {
     label: 'Cyclical process',
     component: S.FlywheelSlide,

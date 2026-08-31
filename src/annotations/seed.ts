@@ -30,24 +30,24 @@ const mk = (
 });
 
 export const seedAnnotations: Annotation[] = [
-  // [FLAW 1] nine-category pie
-  mk('seed_pie', 's6', 'visualize',
-    "nine slices — nobody can read this. what shape does this data actually want?",
+  // s07 — the pie spends 61.5% of its area on "All others"
+  mk('seed_pie', 's07', 'visualize',
+    "most of this pie is 'all others'. the comparison i care about is korea vs france.",
     ring(0.36, 0.58, 0.215, 0.375, 1.7),
     { x: 0.012, y: 0.40 },
     [{ elementId: 'chart', label: 'the chart' }]),
 
-  // [FLAW 2] stale figure, no source
-  mk('seed_stale', 's8', 'research',
-    "this is 2024 and there's no source. find the current number and cite it.",
-    ring(0.50, 0.55, 0.235, 0.20, 3.3),
-    { x: 0.845, y: 0.30 },
-    [{ elementId: 'value', label: 'the headline figure' }]),
+  // s08 — one panel is a year behind the other
+  mk('seed_stale', 's08', 'research',
+    "the hybe panel is 2024 but dearu is q4 2025. get the current hybe figures.",
+    ring(0.74, 0.55, 0.21, 0.24, 3.3),
+    { x: 0.845, y: 0.28 },
+    [{ elementId: 'panel.1', label: 'panel: Commerce · HYBE platform segment (2024)' }]),
 
-  // [FLAW 3] source lines don't agree
-  mk('seed_src', 's7', 'fix',
-    "source lines are formatted three different ways across the chart slides. pick one.",
-    ring(0.16, 0.89, 0.155, 0.055, 5.1),
-    { x: 0.845, y: 0.70 },
+  // s04 — source lines are written three different ways across the deck
+  mk('seed_src', 's04', 'fix',
+    "source lines don't match across slides 4, 7 and 8. pick one format.",
+    ring(0.30, 0.90, 0.28, 0.05, 5.1),
+    { x: 0.845, y: 0.72 },
     [{ elementId: 'source', label: 'source line' }]),
 ];

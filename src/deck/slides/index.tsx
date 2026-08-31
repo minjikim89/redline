@@ -96,3 +96,86 @@ export function FlywheelSlide({ title, kicker, stages, source }: any) {
     </Frame>
   );
 }
+
+/** A grid of reported figures under one or two headed panels. */
+export function MetricsSlide({ title, kicker, panels, source, asOf }: any) {
+  return (
+    <Frame title={title} kicker={kicker} source={source} asOf={asOf}>
+      <div className="panels">
+        {panels?.map((p: any, pi: number) => (
+          <div className="panel-card" key={p.heading}
+            data-el-id={`panel.${pi}`} data-el-label={`panel: ${p.heading}`}>
+            <div className="pc-head">{p.heading}</div>
+            <div className="pc-grid">
+              {p.metrics?.map((m: any, mi: number) => (
+                <div className="pc-m" key={m.label}
+                  data-el-id={`panel.${pi}.metric.${mi}`} data-el-label={`figure: ${m.label}`}>
+                  <span className={`pc-v${m.negative ? ' neg' : ''}`}>{m.value}</span>
+                  <span className="pc-l">{m.label}</span>
+                </div>
+              ))}
+            </div>
+            {p.note && <p className="pc-note">{p.note}</p>}
+          </div>
+        ))}
+      </div>
+    </Frame>
+  );
+}
+
+/** Dated events on a spine. */
+export function TimelineSlide({ title, kicker, events, source }: any) {
+  return (
+    <Frame title={title} kicker={kicker} source={source}>
+      <ol className="tl">
+        {events?.map((e: any) => (
+          <li key={e.year} data-el-id={`event.${e.year}`} data-el-label={`${e.year} entry`}>
+            <span className="tl-y">{e.year}</span>
+            <span className="tl-dot" />
+            <span className="tl-t">{e.text}</span>
+          </li>
+        ))}
+      </ol>
+    </Frame>
+  );
+}
+
+/** Numbered arguments. The "so what" slide. */
+export function PointsSlide({ title, kicker, points, caveat }: any) {
+  return (
+    <Frame title={title} kicker={kicker}>
+      <div className="pts-wrap">
+        <ol className="pts">
+          {points?.map((p: any, i: number) => (
+            <li key={p.head} data-el-id={`point.${i}`} data-el-label={`point ${i + 1}: ${p.head}`}>
+              <span className="pt-n">{String(i + 1).padStart(2, '0')}</span>
+              <div>
+                <strong>{p.head}</strong>
+                <p>{p.body}</p>
+              </div>
+            </li>
+          ))}
+        </ol>
+        {caveat && (
+          <p className="pts-caveat" data-el-id="caveat" data-el-label="the caveat">{caveat}</p>
+        )}
+      </div>
+    </Frame>
+  );
+}
+
+/** Where every figure came from. */
+export function SourcesSlide({ title, kicker, groups }: any) {
+  return (
+    <Frame title={title} kicker={kicker}>
+      <dl className="srcs">
+        {groups?.map((g: any, i: number) => (
+          <div key={g.topic} data-el-id={`src.${i}`} data-el-label={`source: ${g.topic}`}>
+            <dt>{g.topic}</dt>
+            <dd>{g.text}</dd>
+          </div>
+        ))}
+      </dl>
+    </Frame>
+  );
+}

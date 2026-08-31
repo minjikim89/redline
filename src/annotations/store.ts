@@ -114,6 +114,19 @@ export function resolveAnnotation(id: string) {
   return state.annotations.find(a => a.id === id) ?? null;
 }
 
+/** Reposition a mark. One history entry per drag, committed on pointer-up. */
+export function moveAnnotation(id: string, d: { label?: Pt; stroke?: Pt }) {
+  set({
+    annotations: state.annotations.map(a => a.id !== id ? a : {
+      ...a,
+      labelAt: d.label ? { x: a.labelAt.x + d.label.x, y: a.labelAt.y + d.label.y } : a.labelAt,
+      stroke: d.stroke
+        ? a.stroke.map(p => ({ x: p.x + d.stroke!.x, y: p.y + d.stroke!.y }))
+        : a.stroke,
+    }),
+  });
+}
+
 export function removeAnnotation(id: string) {
   set({ annotations: state.annotations.filter(a => a.id !== id) });
 }

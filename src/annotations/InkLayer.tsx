@@ -10,14 +10,20 @@ const KINDS: { k: AnnotationKind; label: string }[] = [
 
 interface Draft { stroke: Pt[]; targets: Target[]; labelAt: Pt }
 
-export function InkLayer({ slideId, canvasRef, slideRef, annotations, selected, onDone }: {
+export type Mode = 'draw' | 'move';
+
+interface Drag { id: string; part: 'label' | 'stroke'; from: Pt; dx: number; dy: number }
+
+export function InkLayer({ slideId, mode, canvasRef, slideRef, annotations, selected, onDone }: {
   slideId: string;
+  mode: Mode;
   canvasRef: React.RefObject<HTMLDivElement | null>;
   slideRef: React.RefObject<HTMLDivElement | null>;
   annotations: Annotation[];
   selected: string | null;
   onDone: () => void;
 }) {
+  const [drag, setDrag] = useState<Drag | null>(null);
   const [live, setLive] = useState<Pt[] | null>(null);
   const [draft, setDraft] = useState<Draft | null>(null);
   const [kind, setKind] = useState<AnnotationKind>('fix');
@@ -39,18 +45,45 @@ export function InkLayer({ slideId, canvasRef, slideRef, annotations, selected, 
   };
 
   const down = (e: React.PointerEvent) => {
-    if (draft) return;
+    if (draft || mode === 'move') return;
     store.select(null);
     drawing.current = true;
     (e.target as Element).setPointerCapture?.(e.pointerId);
     setLive([canvasPt(e)]);
   };
   const move = (e: React.PointerEvent) => {
+    if (drag) {
+      const p = canvasPt(e);
+      setDrag(d => (d ? { ...d, dx: p.x - d.from.x, dy: p.y - d.from.y } : d));
+      return;
+    }
     if (!drawing.current) return;
     setLive(s => (s ? [...s, canvasPt(e)] : s));
   };
 
+  const startDrag = (e: React.PointerEvent, id: string, part: 'label' | 'stroke') => {
+    if (mode !== 'move') return false;
+    e.stopPropagation();
+    (e.target as Element).setPointerCapture?.(e.pointerId);
+    setDrag({ id, part, from: canvasPt(e), dx: 0, dy: 0 });
+    return true;
+  };
+
+  const endDrag = () => {
+    if (!drag) return;
+    const cRect = canvasRef.current!.getBoundingClientRect();
+    const sRect = slideRef.current!.getBoundingClientRect();
+    if (Math.abs(drag.dx) > 1 || Math.abs(drag.dy) > 1) {
+      store.moveAnnotation(drag.id, drag.part === 'label'
+        ? { label: { x: drag.dx / cRect.width, y: drag.dy / cRect.height } }
+        : { stroke: { x: drag.dx / sRect.width, y: drag.dy / sRect.height } });
+    }
+    setDrag(null);
+    onDone();
+  };
+
   const finish = () => {
+    if (drag) { endDrag(); return; }
     drawing.current = false;
     const pts = decimate(live ?? []);
     setLive(null);
@@ -95,14 +128,24 @@ export function InkLayer({ slideId, canvasRef, slideRef, annotations, selected, 
     : null;
 
   const geom = (a: Annotation) => {
-    const pts = a.stroke.map(p => ({ x: p.x * off!.w + off!.x, y: p.y * off!.h + off!.y }));
-    const lab = { x: a.labelAt.x * cRect!.width, y: a.labelAt.y * cRect!.height };
+    const d = drag?.id === a.id ? drag : null;
+    const sd = d?.part === 'stroke' ? d : null;
+    const ld = d?.part === 'label' ? d : null;
+    const pts = a.stroke.map(p => ({
+      x: p.x * off!.w + off!.x + (sd?.dx ?? 0),
+      y: p.y * off!.h + off!.y + (sd?.dy ?? 0),
+    }));
+    const lab = {
+      x: a.labelAt.x * cRect!.width + (ld?.dx ?? 0),
+      y: a.labelAt.y * cRect!.height + (ld?.dy ?? 0),
+    };
     return { pts, lab, anchor: { x: lab.x + 84, y: lab.y + 22 } };
   };
 
   return (
     <>
-      <svg className="ink" onPointerDown={down} onPointerMove={move}
+      <svg className={`ink mode-${mode}${drag ? ' dragging' : ''}`}
+        onPointerDown={down} onPointerMove={move}
         onPointerUp={finish} onPointerLeave={finish}>
         <defs>
           <filter id="rough" x="-12%" y="-12%" width="124%" height="124%">
@@ -121,7 +164,10 @@ export function InkLayer({ slideId, canvasRef, slideRef, annotations, selected, 
               <path className="stroke" d={toPath(pts)} />
               {/* fat invisible path so the thin ink is actually clickable */}
               <path className="hit" d={toPath(pts)}
-                onPointerDown={e => { e.stopPropagation(); store.select(a.id); }}
+                onPointerDown={e => {
+                  if (startDrag(e, a.id, 'stroke')) return;
+                  e.stopPropagation(); store.select(a.id);
+                }}
                 onPointerEnter={() => setHover(a.id)}
                 onPointerLeave={() => setHover(h => (h === a.id ? null : h))} />
             </g>
@@ -141,7 +187,10 @@ export function InkLayer({ slideId, canvasRef, slideRef, annotations, selected, 
           <div key={a.id}
             className={`scribble k-${a.kind}${a.status === 'resolved' ? ' done' : ''}${on ? ' on' : ''}`}
             style={{ left: lab.x, top: lab.y }}
-            onPointerDown={e => { e.stopPropagation(); store.select(on ? null : a.id); }}
+            onPointerDown={e => {
+              if (startDrag(e, a.id, 'label')) return;
+              e.stopPropagation(); store.select(on ? null : a.id);
+            }}
             onPointerEnter={() => setHover(a.id)}
             onPointerLeave={() => setHover(h => (h === a.id ? null : h))}>
             <span className="scribble-kind">{a.kind}</span>

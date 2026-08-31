@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
 import { registry } from './deck/registry';
 import { SlideScope } from './deck/El';
-import { InkLayer } from './annotations/InkLayer';
+import { InkLayer, type Mode } from './annotations/InkLayer';
 import * as store from './annotations/store';
 import { registerAll, syncConditionalTools, webmcpSupported } from './webmcp/tools';
 
@@ -12,6 +12,7 @@ export default function App() {
     const n = Number(new URLSearchParams(location.search).get('slide'));
     return Number.isFinite(n) && n > 0 ? n - 1 : 0;
   });
+  const [mode, setMode] = useState<Mode>('draw');
   const [tools, setTools] = useState<string[]>([]);
   const [supported, setSupported] = useState<boolean | null>(null);
   const [tick, setTick] = useState(0);          // re-measure marks after layout changes
@@ -55,6 +56,8 @@ export default function App() {
         e.preventDefault();
         e.shiftKey ? store.redo() : store.undo();
       }
+      if (!mod && (e.key === 'v' || e.key === 'V')) setMode('move');
+      if (!mod && (e.key === 'p' || e.key === 'P')) setMode('draw');
       if (!mod && (e.key === 'ArrowRight' || e.key === 'ArrowLeft')) {
         setCurrent(c => Math.min(Math.max(c + (e.key === 'ArrowRight' ? 1 : -1), 0),
           store.getState().deck.slides.length - 1));
@@ -126,6 +129,7 @@ export default function App() {
 
           <InkLayer
             slideId={slide.id}
+            mode={mode}
             canvasRef={canvasRef}
             slideRef={slideRef}
             annotations={marks}
@@ -135,13 +139,22 @@ export default function App() {
         </div>
 
         <div className="toolbar">
+          <div className="modes">
+            <button className={mode === 'draw' ? 'on' : ''} onClick={() => setMode('draw')}
+              title="Draw (P)">✎ draw</button>
+            <button className={mode === 'move' ? 'on' : ''} onClick={() => setMode('move')}
+              title="Move (V)">✥ move</button>
+          </div>
+          <span className="tb-sep" />
           <button disabled={!store.canUndo()} onClick={() => store.undo()}
             title="Undo (⌘Z)">↶ undo</button>
           <button disabled={!store.canRedo()} onClick={() => store.redo()}
             title="Redo (⇧⌘Z)">↷ redo</button>
           <span className="tb-sep" />
           <span className="tb-hint">
-            Circle anything, then write in the margin. Click a mark to resolve or delete it.
+            {mode === 'draw'
+              ? 'Circle anything, then write in the margin. Click a mark to resolve or delete it.'
+              : 'Drag a mark or a note to reposition it. Press P to draw again.'}
           </span>
         </div>
       </main>

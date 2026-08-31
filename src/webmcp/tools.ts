@@ -111,6 +111,7 @@ const baseTools: Reg[] = [
       return ok({
         slideId: s.id, type: s.type, props: s.props,
         annotatableElements: registry[s.type].elements,
+        series: registry[s.type].series ?? [],
       });
     },
   },
@@ -166,34 +167,44 @@ const baseTools: Reg[] = [
     },
   },
   {
-    name: 'set_chart_data',
-    title: 'Replace a chart series',
-    description: 'Swap the labelled values a chart draws. Order is preserved as given.',
+    name: 'set_series',
+    title: 'Replace the values a chart draws',
+    description:
+      'Swap the labelled values in one of a slide\'s series. read_slide lists the series a '
+      + 'slide has; pass the one you mean. Order is kept exactly as given.',
     inputSchema: {
       type: 'object',
       properties: {
         slideId: { type: 'string' },
-        data: {
+        series: { type: 'string', description: 'A series name from read_slide, e.g. "left.rows".' },
+        rows: {
           type: 'array', minItems: 1, maxItems: 24,
           items: {
             type: 'object',
-            properties: { label: { type: 'string', maxLength: 40 }, value: { type: 'number' } },
+            properties: {
+              label: { type: 'string', maxLength: 60 },
+              value: { type: 'number' },
+              strong: { type: 'boolean', description: 'Mark the row the slide is about.' },
+            },
             required: ['label', 'value'], additionalProperties: false,
           },
         },
-        unit: { type: 'string', maxLength: 12 },
       },
-      required: ['slideId', 'data'], additionalProperties: false,
+      required: ['slideId', 'series', 'rows'], additionalProperties: false,
     },
-    execute: async ({ slideId, data, unit }: any) => {
+    execute: async ({ slideId, series, rows }: any) => {
       const s = store.getSlide(slideId);
       if (!s) return fail('NOT_FOUND', `No slide "${slideId}".`, { knownSlideIds: slideIds() });
-      if (!('data' in registry[s.type].propSchema))
+      const available = registry[s.type].series ?? [];
+      if (!available.length)
         return fail('NOT_APPLICABLE', `A ${s.type} slide draws no series.`,
           { slidesWithSeries: store.getState().deck.slides
-              .filter(x => 'data' in registry[x.type].propSchema).map(x => x.id) });
-      store.updateSlideProps(slideId, unit === undefined ? { data } : { data, unit });
-      return ok({ slideId, points: data.length });
+              .filter(x => (registry[x.type].series ?? []).length).map(x => x.id) });
+      if (!available.includes(series))
+        return fail('INVALID_INPUT', `"${series}" is not a series on this slide.`,
+          { seriesOnThisSlide: available });
+      store.setByPath(slideId, series, rows);
+      return ok({ slideId, series, rows: rows.length });
     },
   },
   {

@@ -44,8 +44,33 @@ export function InkLayer({ slideId, mode, canvasRef, slideRef, annotations, sele
     return { x: e.clientX - r.left, y: e.clientY - r.top };
   };
 
+  /**
+   * Editing and marking share one surface. A press that lands on text puts the
+   * caret there; a press on open space starts a mark. Nobody should have to know
+   * which mode they are in to circle something.
+   */
   const down = (e: React.PointerEvent) => {
-    if (draft || mode !== 'draw') return;
+    if (draft || mode === 'move') return;
+
+    if (mode === 'edit') {
+      const under = document.elementsFromPoint(e.clientX, e.clientY)
+        .find(el => (el as HTMLElement).isContentEditable) as HTMLElement | undefined;
+      if (under) {
+        under.focus();
+        const d = document as any;
+        const r = d.caretRangeFromPoint?.(e.clientX, e.clientY)
+          ?? (() => {
+            const pos = d.caretPositionFromPoint?.(e.clientX, e.clientY);
+            if (!pos) return null;
+            const rr = document.createRange();
+            rr.setStart(pos.offsetNode, pos.offset); rr.collapse(true);
+            return rr;
+          })();
+        if (r) { const sel = getSelection(); sel?.removeAllRanges(); sel?.addRange(r); }
+        return;                       // the press belonged to the text
+      }
+    }
+
     store.select(null);
     drawing.current = true;
     (e.target as Element).setPointerCapture?.(e.pointerId);

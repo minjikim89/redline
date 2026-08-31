@@ -19,26 +19,78 @@ export interface ImportReport {
 }
 
 const clean = (s: string) => s.replace(/\s+/g, ' ').trim();
-const isShout = (s: string) => s.length < 90 && s === s.toUpperCase() && /[A-Z]/.test(s);
-const looksSource = (s: string) => /^(source|sources|출처)\b/i.test(s);
-const bigFigure = (s: string) => /^[$€£¥₩]?[\d.,]+[BMK%×x]?$/.test(s.replace(/\s/g, ''));
 
-function textBlocks(root: Element): string[] {
-  const out: string[] = [];
-  root.querySelectorAll('h1,h2,h3,h4,p,div,span,li,dt,dd,strong').forEach(el => {
-    if (el.querySelector('h1,h2,h3,h4,p,div,span,li')) return;   // leaves only
-    const t = clean(el.textContent ?? '');
-    if (t && t.length > 1 && !out.includes(t)) out.push(t);
+/**
+ * textContent glues child nodes together with nothing between them, so a
+ * heading broken across two spans comes back as "Becamea Global". Walk the
+ * children and put the whitespace back.
+ */
+function readText(el: Element): string {
+  let out = '';
+  el.childNodes.forEach(n => {
+    if (n.nodeType === 3) out += n.nodeValue ?? '';
+    else if (n.nodeType === 1) {
+      const tag = (n as Element).tagName.toLowerCase();
+      if (tag === 'br') { out += ' '; return; }
+      out += ` ${readText(n as Element)} `;
+    }
   });
-  return out;
+  return clean(out);
+}
+const looksSource = (s: string) => /^(source|sources|출처)\b/i.test(s);
+
+/** A standalone number, with an optional currency mark and magnitude suffix. */
+const bigFigure = (s: string) =>
+  /^[-−+]?[$€£¥₩]?[\d][\d.,]*\s?[BMKTbn%×x]?$/.test(s.replace(/\s+/g, ' ').trim());
+
+/**
+ * An all-caps label. A bare figure like "$1.4M" is technically uppercase, so it
+ * has to be excluded here — otherwise the headline number gets consumed as a
+ * kicker and the slide loses the thing it exists to show.
+ */
+const isShout = (s: string) =>
+  s.length < 90 && s === s.toUpperCase() && /[A-Z]/.test(s) && !bigFigure(s);
+
+interface Read { blocks: string[]; headings: string[] }
+
+/**
+ * Leaf text, in document order, plus whatever the document itself called a
+ * heading. Honouring h1–h4 matters: a real heading can be shorter than the
+ * standfirst under it, so length alone picks the wrong line.
+ */
+/** Only these break a block apart. Inline children stay part of their parent. */
+const BLOCK = 'h1,h2,h3,h4,p,div,li,dt,dd,section,article,ul,ol,dl,table';
+
+function textBlocks(root: Element): Read {
+  const blocks: string[] = [];
+  const headings: string[] = [];
+  const claimed: Element[] = [];
+
+  root.querySelectorAll(`${BLOCK},span,strong`).forEach(el => {
+    if (el.querySelector(BLOCK)) return;                       // not a leaf block
+    if (claimed.some(c => c.contains(el))) return;             // parent already took it
+    const t = readText(el);
+    if (!t || t.length < 2) return;
+    claimed.push(el);
+    if (blocks.includes(t)) return;
+    blocks.push(t);
+    if (/^h[1-4]$/i.test(el.tagName)) headings.push(t);
+  });
+  return { blocks, headings };
 }
 
-function classify(blocks: string[], index: number): { type: SlideType; props: any; tone?: any } {
-  const heading = blocks.find(b => b.length > 12 && !isShout(b)) ?? blocks[0] ?? `Slide ${index + 1}`;
-  const kicker = blocks.find(b => isShout(b) && !looksSource(b));
+function classify(read: Read, index: number): { type: SlideType; props: any; tone?: any } {
+  const { blocks, headings } = read;
+  // Claim in order of certainty: a bare figure, then a source line, then an
+  // all-caps label, then the longest remaining line as the heading.
+  const figure = blocks.find(bigFigure);
   const source = blocks.find(looksSource);
-  const rest = blocks.filter(b => b !== heading && b !== kicker && b !== source);
-  const figure = rest.find(bigFigure);
+  const kicker = blocks.find(b => isShout(b) && b !== source);
+  const heading = headings.find(h => h !== figure && h !== source)
+    ?? blocks.find(b => b.length > 12 && !isShout(b) && b !== source && b !== figure)
+    ?? blocks.find(b => b !== figure && b !== source && b !== kicker)
+    ?? `Slide ${index + 1}`;
+  const rest = blocks.filter(b => b !== heading && b !== kicker && b !== source && b !== figure);
 
   if (index === 0) {
     return {
@@ -50,12 +102,13 @@ function classify(blocks: string[], index: number): { type: SlideType; props: an
       },
     };
   }
-  if (figure && rest.length <= 6) {
+  // One dominant number carrying the slide: give it the full bleed it wants.
+  if (figure && rest.length <= 4) {
     return {
       type: 'hero', tone: 'accent',
       props: {
-        eyebrow: kicker ?? '', figure, tail: '',
-        body: rest.find(b => b.length > 40 && b !== figure) ?? '',
+        eyebrow: kicker ?? heading, figure, tail: '',
+        body: rest.find(b => b.length > 40) ?? '',
         footnote: source ?? '',
       },
     };
@@ -71,7 +124,7 @@ function classify(blocks: string[], index: number): { type: SlideType; props: an
     };
   }
   // Default: prose becomes cards. Always renders, never misrepresents the source.
-  const bodies = rest.filter(b => b.length > 25).slice(0, 4);
+  const bodies = [figure, ...rest].filter((b): b is string => !!b && b.length > 25).slice(0, 4);
   return {
     type: 'cards',
     props: {
@@ -98,15 +151,15 @@ export function importHtml(html: string, name: string): ImportReport {
 
   const recognised: Record<string, number> = {};
   const slides: Slide[] = sections.slice(0, 40).map((sec, i) => {
-    const blocks = textBlocks(sec);
-    const { type, props, tone } = classify(blocks, i);
+    const read = textBlocks(sec);
+    const { type, props, tone } = classify(read, i);
     recognised[type] = (recognised[type] ?? 0) + 1;
-    if (!blocks.length) warnings.push(`Section ${i + 1} had no readable text.`);
+    if (!read.blocks.length) warnings.push(`Section ${i + 1} had no readable text.`);
     return { id: `i${String(i + 1).padStart(2, '0')}`, type, tone, props } as Slide;
   });
 
   const title = clean(doc.querySelector('title')?.textContent ?? '')
-    || name.replace(/\.[^.]+$/, '');
+    || name.replace(/(\.dc)?\.html?$/i, '');
 
   return {
     deck: { id: 'imported', title: title || 'Imported deck', theme: defaultTheme, slides },

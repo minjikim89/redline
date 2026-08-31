@@ -7,6 +7,11 @@ export interface SlideDef {
   elements: string[];
   /** JSON Schema for the props an agent may set. This is the agent's vocabulary. */
   propSchema: Record<string, any>;
+  /**
+   * Dotted paths to the labelled series this slide draws. Declared here so a
+   * tool can address a series without knowing how the component lays it out.
+   */
+  series?: string[];
 }
 
 const str = (max = 400) => ({ type: 'string', maxLength: max });
@@ -56,6 +61,7 @@ export const registry: Record<SlideType, SlideDef> = {
     label: 'Two ranked bar groups side by side',
     component: S.BarsPairSlide,
     elements: ['kicker', 'title', 'body', 'source'],
+    series: ['left.rows', 'right.rows'],
     propSchema: {
       kicker: str(60), title: str(200), source: str(300), asOf: str(40),
       left: {
@@ -74,6 +80,7 @@ export const registry: Record<SlideType, SlideDef> = {
     label: 'Sequential steps with a supporting chart',
     component: S.FlowSlide,
     elements: ['kicker', 'title', 'body', 'chart', 'source'],
+    series: ['chart.points'],
     propSchema: {
       kicker: str(60), title: str(200), source: str(300), asOf: str(40),
       steps: {

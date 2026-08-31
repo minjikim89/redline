@@ -3,6 +3,7 @@ import { registry } from './deck/registry';
 import { EditCtx } from './deck/slideKit';
 import { Inspector } from './deck/Inspector';
 import { Start } from './Start';
+import { exportHtml } from './deck/exportHtml';
 import { ARTBOARD } from './deck/theme';
 import { InkLayer, type Mode } from './annotations/InkLayer';
 import * as store from './annotations/store';
@@ -302,6 +303,14 @@ export default function App() {
           </div>
           <button className={insp ? 'insp-t on' : 'insp-t'} onClick={() => setInsp(v => !v)}
             title="Properties (I)">⚙ props</button>
+          <button onClick={() => {
+            const blob = new Blob([exportHtml(s.deck)], { type: 'text/html' });
+            const a = document.createElement('a');
+            a.href = URL.createObjectURL(blob);
+            a.download = `${s.deck.title.replace(/[^\w\s-]/g, '').trim() || 'deck'}.html`;
+            a.click();
+            URL.revokeObjectURL(a.href);
+          }} title="Export the deck as standalone HTML">↓ export</button>
           <span className="tb-sep" />
           <button className={replaying ? 'replay on' : 'replay'} onClick={toggleReplay}>
             {replaying ? '■ stop' : '▶ watch a pass'}

@@ -1,45 +1,76 @@
 <!doctype html>
 <html lang="en">
-<head><meta charset="utf-8"><title>Q3 Infrastructure Review</title></head>
-<body style="font-family:system-ui;margin:0">
+<head>
+<meta charset="utf-8">
+<title>Q3 Infrastructure Review</title>
+<style>
+  body{margin:0;font-family:Georgia,serif;color:#1a1a1a}
+  section{padding:96px 110px;border-bottom:1px solid #ddd;min-height:70vh}
+  .eyebrow{font:600 13px/1 system-ui;letter-spacing:.18em;text-transform:uppercase;color:#666}
+  h1{font-size:56px;line-height:1.1;margin:24px 0 20px}
+  h2{font-size:38px;line-height:1.2;margin:20px 0 24px}
+  .figure{font-size:120px;font-weight:700;line-height:1;margin:24px 0}
+  p{font-size:19px;line-height:1.6;max-width:46em;margin:0 0 16px}
+  .src{font:12px system-ui;letter-spacing:.06em;text-transform:uppercase;color:#888;margin-top:40px}
+</style>
+</head>
+<body>
 
-<section style="padding:80px;background:#111">
-  <div>INTERNAL · ENGINEERING</div>
+<section>
+  <div class="eyebrow">Internal · Platform Engineering</div>
   <h1>Q3 Infrastructure Review</h1>
-  <p>Where the platform spend went, what it bought, and the two decisions that need making before the next planning cycle.</p>
-  <div>18 MINUTES</div>
-  <div>FIGURES AS BILLED</div>
+  <p>Where the platform spend went this quarter, what it bought, and the two decisions that need making before the next planning cycle opens.</p>
+  <div class="eyebrow">18 MINUTES</div>
+  <div class="eyebrow">FIGURES AS BILLED, NOT AS FORECAST</div>
 </section>
 
-<section style="padding:80px">
-  <div>THE NUMBER</div>
-  <div>$1.4M</div>
-  <p>Annualised run rate on compute after the migration, against a $1.9M forecast. The gap is almost entirely reserved-instance coverage that landed a quarter early.</p>
-  <div>SOURCE: FINOPS LEDGER, SEPTEMBER 2026</div>
+<section>
+  <div class="eyebrow">The headline number</div>
+  <div class="figure">$1.4M</div>
+  <p>Annualised run rate on compute after the migration, against a $1.9M forecast. Almost the entire gap is reserved-instance coverage that landed a quarter earlier than planned, which means it is a timing win rather than a structural one.</p>
+  <div class="src">Source: FinOps ledger, September 2026 close</div>
 </section>
 
-<section style="padding:80px">
-  <div>WHERE IT WENT</div>
-  <h2>Three cost centres moved; the rest held flat</h2>
-  <p>Compute fell 26% after the reserved-instance purchase, but the saving is one-off and does not repeat next year without a further commitment.</p>
-  <p>Storage grew 41%, driven almost entirely by retention on the events pipeline rather than by user growth.</p>
-  <p>Egress is now the second-largest line and the only one still compounding month over month.</p>
-  <div>Source: FinOps ledger and vendor invoices, Q1–Q3 2026</div>
+<section>
+  <div class="eyebrow">Where it went</div>
+  <h2>Three cost centres moved; everything else held flat</h2>
+  <p>Compute fell 26% after the reserved-instance purchase. The saving does not repeat next year without a further commitment, so treating it as a new baseline would overstate next year's headroom.</p>
+  <p>Storage grew 41%, driven almost entirely by retention settings on the events pipeline rather than by user growth. Per-user storage actually fell over the same period.</p>
+  <p>Egress is now the second-largest line and the only one still compounding month over month. Nothing in the current roadmap slows it.</p>
+  <div class="src">Source: FinOps ledger and vendor invoices, Q1 through Q3 2026</div>
 </section>
 
-<section style="padding:80px">
-  <div>DECISION ONE</div>
+<section>
+  <div class="eyebrow">Decision one</div>
   <h2>Retention on the events pipeline</h2>
-  <p>Ninety-day retention costs roughly $18K a month and is read in under two percent of investigations. Thirty days would cover every incident reviewed this year.</p>
-  <p>Against that, compliance has asked for a written position before any reduction, which has not been drafted.</p>
+  <p>Ninety-day retention costs roughly $18K a month. Fewer than two percent of investigations read anything older than thirty days, and every incident reviewed this year was resolved inside that window.</p>
+  <p>Against that, compliance has asked for a written position before any reduction. That position has not been drafted, and drafting it is the actual blocker rather than the engineering work.</p>
+  <div class="src">Source: incident review log and storage telemetry, 2026 year to date</div>
 </section>
 
-<section style="padding:80px">
-  <div>SOURCES</div>
-  <h2>References</h2>
-  <p>Source: FinOps ledger, monthly close, January through September 2026.</p>
-  <p>Source: Vendor invoices as billed; reserved-instance amortisation follows the finance treatment, not the cash date.</p>
-  <p>Source: Incident review log, 2026 year to date.</p>
+<section>
+  <div class="eyebrow">Decision two</div>
+  <h2>Whether to renew the managed search contract</h2>
+  <p>The contract renews in November at a 22% uplift. Self-hosting the same workload models at about 60% of the renewal price, but adds an on-call surface the team has said it cannot absorb this half.</p>
+  <p>A third option nobody has costed: drop the two least-used indexes, which together account for a third of the bill and serve one internal dashboard.</p>
+  <div class="src">Source: vendor quote dated August 2026; internal capacity model</div>
+</section>
+
+<section>
+  <div class="eyebrow">What we are asking for</div>
+  <h2>Two decisions, one owner each</h2>
+  <p>Retention: a compliance position by mid-October, so the change can land before the December peak rather than after it.</p>
+  <p>Search: a decision by the end of October, which is the last point at which self-hosting could be stood up before the contract renews.</p>
+  <p>Neither decision needs new budget. Both need someone named against them.</p>
+</section>
+
+<section>
+  <div class="eyebrow">Sources</div>
+  <h2>References and notes</h2>
+  <p>Source: FinOps ledger, monthly close, January through September 2026. Figures are as billed.</p>
+  <p>Source: Vendor invoices; reserved-instance amortisation follows the finance treatment rather than the cash date.</p>
+  <p>Source: Incident review log, 2026 year to date, including postmortems marked internal-only.</p>
+  <p>Source: Managed search vendor quote, August 2026, and the internal capacity model dated the same month.</p>
 </section>
 
 </body>

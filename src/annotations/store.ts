@@ -1,0 +1,76 @@
+import type { Annotation, AnnotationKind, Author, Deck, Reply } from '../deck/types';
+import { sampleDeck } from '../deck/sampleDeck';
+
+/**
+ * External store. Tools mutate it from outside React's tree, so we keep state
+ * here and subscribe via useSyncExternalStore rather than lifting into a component.
+ */
+type State = { deck: Deck; annotations: Annotation[]; selected: string | null };
+
+let state: State = { deck: sampleDeck, annotations: [], selected: null };
+const listeners = new Set<() => void>();
+
+const emit = () => listeners.forEach(l => l());
+export const subscribe = (l: () => void) => { listeners.add(l); return () => { listeners.delete(l); }; };
+export const getState = () => state;
+const set = (next: Partial<State>) => { state = { ...state, ...next }; emit(); };
+
+const uid = (p: string) => `${p}_${Math.random().toString(36).slice(2, 9)}`;
+const now = () => new Date().toISOString();
+
+/* ---------- deck ---------- */
+
+export function getSlide(slideId: string) {
+  return state.deck.slides.find(s => s.id === slideId) ?? null;
+}
+
+export function updateSlideProps(slideId: string, patch: Record<string, unknown>) {
+  const slides = state.deck.slides.map(s =>
+    s.id === slideId ? { ...s, props: { ...s.props, ...patch } } : s);
+  set({ deck: { ...state.deck, slides } });
+  return getSlide(slideId);
+}
+
+/* ---------- annotations ---------- */
+
+export function addAnnotation(a: {
+  slideId: string; elementId: string; kind: AnnotationKind; body: string; author?: Author;
+}): Annotation {
+  const ann: Annotation = {
+    id: uid('ann'), slideId: a.slideId, elementId: a.elementId, kind: a.kind,
+    body: a.body, status: 'open', author: a.author ?? 'human', replies: [], at: now(),
+  };
+  set({ annotations: [...state.annotations, ann] });
+  return ann;
+}
+
+export function openAnnotations() {
+  return state.annotations.filter(a => a.status === 'open');
+}
+
+export function openKinds(): AnnotationKind[] {
+  return [...new Set(openAnnotations().map(a => a.kind))];
+}
+
+export function replyToAnnotation(id: string, body: string, author: Author = 'agent') {
+  const reply: Reply = { id: uid('rep'), author, body, at: now() };
+  set({
+    annotations: state.annotations.map(a =>
+      a.id === id ? { ...a, replies: [...a.replies, reply] } : a),
+  });
+  return state.annotations.find(a => a.id === id) ?? null;
+}
+
+export function resolveAnnotation(id: string) {
+  set({
+    annotations: state.annotations.map(a =>
+      a.id === id ? { ...a, status: 'resolved' as const } : a),
+  });
+  return state.annotations.find(a => a.id === id) ?? null;
+}
+
+export function removeAnnotation(id: string) {
+  set({ annotations: state.annotations.filter(a => a.id !== id) });
+}
+
+export const select = (id: string | null) => set({ selected: id });

@@ -1,5 +1,6 @@
-import type { Annotation, AnnotationKind, Author, Deck, Reply } from '../deck/types';
+import type { Annotation, AnnotationKind, Author, Deck, Pt, Reply, Target } from '../deck/types';
 import { sampleDeck } from '../deck/sampleDeck';
+import { seedAnnotations } from './seed';
 
 /**
  * External store. Tools mutate it from outside React's tree, so we keep state
@@ -7,7 +8,15 @@ import { sampleDeck } from '../deck/sampleDeck';
  */
 type State = { deck: Deck; annotations: Annotation[]; selected: string | null };
 
-let state: State = { deck: sampleDeck, annotations: [], selected: null };
+// `?blank=1` opens an unmarked deck; the default shows the review already in progress.
+const blank = typeof location !== 'undefined'
+  && new URLSearchParams(location.search).has('blank');
+
+let state: State = {
+  deck: sampleDeck,
+  annotations: blank ? [] : seedAnnotations.map(a => ({ ...a })),
+  selected: null,
+};
 const listeners = new Set<() => void>();
 
 const emit = () => listeners.forEach(l => l());
@@ -34,10 +43,12 @@ export function updateSlideProps(slideId: string, patch: Record<string, unknown>
 /* ---------- annotations ---------- */
 
 export function addAnnotation(a: {
-  slideId: string; elementId: string; kind: AnnotationKind; body: string; author?: Author;
+  slideId: string; targets: Target[]; stroke: Pt[]; labelAt: Pt;
+  kind: AnnotationKind; body: string; author?: Author;
 }): Annotation {
   const ann: Annotation = {
-    id: uid('ann'), slideId: a.slideId, elementId: a.elementId, kind: a.kind,
+    id: uid('ann'), slideId: a.slideId, targets: a.targets, stroke: a.stroke,
+    labelAt: a.labelAt, kind: a.kind,
     body: a.body, status: 'open', author: a.author ?? 'human', replies: [], at: now(),
   };
   set({ annotations: [...state.annotations, ann] });

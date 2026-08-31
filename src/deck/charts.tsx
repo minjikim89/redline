@@ -19,13 +19,14 @@ export function Pie({ data, unit }: { data: Datum[]; unit: string }) {
           const large = sweep > Math.PI ? 1 : 0;
           return (
             <path key={d.label} fill={series[i % series.length]} stroke="#fff" strokeWidth="1.5"
+              data-el-id={`slice.${i}`} data-el-label={`${d.label} slice`}
               d={`M ${C} ${C} L ${x1} ${y1} A ${R} ${R} 0 ${large} 1 ${x2} ${y2} Z`} />
           );
         })}
       </svg>
       <ul className="legend">
         {data.map((d, i) => (
-          <li key={d.label}>
+          <li key={d.label} data-el-id={`legend.${i}`} data-el-label={`legend: ${d.label}`}>
             <i style={{ background: series[i % series.length] }} />
             <span className="lg-label">{d.label}</span>
             <span className="lg-val">{fmt(d.value)}{unit}</span>
@@ -43,7 +44,8 @@ export function Bar({ data, unit }: { data: Datum[]; unit: string }) {
   return (
     <div className="bars">
       {rows.map((d, i) => (
-        <div className="bar-row" key={d.label}>
+        <div className="bar-row" key={d.label}
+          data-el-id={`bar.${d.label}`} data-el-label={`bar: ${d.label}`}>
           <span className="bar-label">{d.label}</span>
           <div className="bar-track">
             <div className="bar-fill" style={{
@@ -63,7 +65,8 @@ export function Column({ data, unit }: { data: Datum[]; unit: string }) {
   return (
     <div className="cols">
       {data.map((d, i) => (
-        <div className="col" key={d.label}>
+        <div className="col" key={d.label}
+          data-el-id={`col.${d.label}`} data-el-label={`column: ${d.label}`}>
           <span className="col-val">{fmt(d.value)}{unit}</span>
           <div className="col-bar" style={{
             height: `${(d.value / max) * 190}px`,
@@ -94,7 +97,8 @@ export function Line({ data, unit }: { data: Datum[]; unit: string }) {
       <path d={path} fill="none" stroke={series[0]} strokeWidth="3"
         strokeLinecap="round" strokeLinejoin="round" />
       {data.map((d, i) => (
-        <g key={d.label}>
+        <g key={d.label} data-el-id={`point.${d.label}`} data-el-label={`point: ${d.label}`}>
+          <circle cx={x(i)} cy={y(d.value)} r="11" fill="transparent" />
           <circle cx={x(i)} cy={y(d.value)} r="4.5" fill="#fff" stroke={series[0]} strokeWidth="2.5" />
           <text x={x(i)} y={H - 6} textAnchor="middle" className="tick">{d.label}</text>
           <text x={x(i)} y={y(d.value) - 12} textAnchor="middle" className="pt">{fmt(d.value)}{unit}</text>

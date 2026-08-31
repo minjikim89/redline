@@ -9,12 +9,12 @@ function Frame({ title, kicker, source, asOf, children }: {
   return (
     <div className="slide-body">
       <header className="slide-head">
-        {kicker && <El id="kicker"><div className="kicker">{kicker}</div></El>}
-        <El id="title"><h2 className="slide-title">{title}</h2></El>
+        {kicker && <El id="kicker" label="section kicker"><div className="kicker">{kicker}</div></El>}
+        <El id="title" label="slide headline"><h2 className="slide-title">{title}</h2></El>
       </header>
-      <El id="chart" block><div className="slide-content">{children}</div></El>
+      <El id="chart" label="the chart" block><div className="slide-content">{children}</div></El>
       {(source || asOf) && (
-        <El id="source">
+        <El id="source" label="source line">
           <footer className="slide-source">
             {source || 'Source: not cited'}{asOf ? ` · as of ${asOf}` : ''}
           </footer>
@@ -27,18 +27,18 @@ function Frame({ title, kicker, source, asOf, children }: {
 export function TitleSlide({ title, subtitle, byline }: any) {
   return (
     <div className="slide-body slide-cover">
-      <El id="title"><h1 className="cover-title">{title}</h1></El>
-      <El id="subtitle"><p className="cover-sub">{subtitle}</p></El>
-      <El id="byline"><p className="cover-by">{byline}</p></El>
+      <El id="title" label="slide headline"><h1 className="cover-title">{title}</h1></El>
+      <El id="subtitle" label="cover subtitle"><p className="cover-sub">{subtitle}</p></El>
+      <El id="byline" label="cover byline"><p className="cover-by">{byline}</p></El>
     </div>
   );
 }
 
-export function BigNumberSlide({ kicker, value, unit, caption, source }: any) {
+export function BigNumberSlide({ kicker, value, unit, caption, source, asOf }: any) {
   return (
-    <Frame title={caption} kicker={kicker} source={source}>
+    <Frame title={caption} kicker={kicker} source={source} asOf={asOf}>
       <div className="bignum">
-        <El id="value"><span className="bignum-v">{value}<em>{unit}</em></span></El>
+        <El id="value" label="the headline figure"><span className="bignum-v">{value}<em>{unit}</em></span></El>
       </div>
     </Frame>
   );

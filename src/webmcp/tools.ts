@@ -65,7 +65,9 @@ const baseTools: Reg[] = [
     execute: async () => ok({
       open: store.openAnnotations().map(a => ({
         annotationId: a.id, kind: a.kind, note: a.body,
-        anchor: { slideId: a.slideId, elementId: a.elementId },
+        slideId: a.slideId,
+        // What the person actually circled, resolved to model elements.
+        marked: a.targets.map(t => ({ elementId: t.elementId, is: t.label })),
         replies: a.replies.length,
       })),
     }),

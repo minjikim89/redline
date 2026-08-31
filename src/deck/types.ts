@@ -41,11 +41,23 @@ export interface Reply {
   at: string;
 }
 
+export interface Pt { x: number; y: number }
+
+/** What a hand-drawn mark landed on, once resolved to the model. */
+export interface Target { elementId: string; label: string }
+
 export interface Annotation {
   id: string;
-  /** Anchored to the MODEL, not to x/y. Survives every re-layout. */
   slideId: string;
-  elementId: string;
+  /**
+   * The mark is free-form, but the ANCHOR is these resolved model targets.
+   * That is what lets a note survive the reflow the agent's own fix causes.
+   */
+  targets: Target[];
+  /** The stroke itself, normalized to the slide box so it scales with zoom. */
+  stroke: Pt[];
+  /** Where the note text sits, normalized to the canvas (may fall outside 0..1). */
+  labelAt: Pt;
   kind: AnnotationKind;
   body: string;
   status: AnnotationStatus;

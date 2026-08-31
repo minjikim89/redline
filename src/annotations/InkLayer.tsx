@@ -10,6 +10,25 @@ const KINDS: { k: AnnotationKind; label: string }[] = [
 
 interface Draft { stroke: Pt[]; targets: Target[]; labelAt: Pt }
 
+const NOTE_W = 182;   // keep in step with .scribble width
+const GAP = 14;
+
+/**
+ * Where a note may sit, in canvas-relative px. Derived from the real gap between
+ * the artboard and its container rather than from a fixed inset: the margin is
+ * responsive, and a note pinned to a number is worthless if it lands under the
+ * slide rail.
+ */
+function labelBounds(canvas: HTMLElement) {
+  const c = canvas.getBoundingClientRect();
+  const stage = canvas.closest('.stage') as HTMLElement | null;
+  const s = stage?.getBoundingClientRect();
+  const pad = stage ? parseFloat(getComputedStyle(stage).paddingLeft) || 0 : 0;
+  const left = s ? s.left + pad - c.left : -NOTE_W - GAP;
+  const right = s ? s.right - pad - c.left - NOTE_W : c.width + GAP;
+  return { min: left, max: Math.max(left, right), width: c.width };
+}
+
 export type Mode = 'edit' | 'draw' | 'move';
 
 interface Drag { id: string; part: 'label' | 'stroke'; from: Pt; dx: number; dy: number }
@@ -143,14 +162,17 @@ export function InkLayer({ slideId, mode, canvasRef, slideRef, annotations, sele
     const targets = resolveTargets(pts.map(p => ({ x: p.x - off.x, y: p.y - off.y })), slide);
 
     const c = centroid(pts);
-    // park the note in the nearer margin, outside the artboard, pointing in
+    // park the note in whichever margin actually has room for it
+    const bounds = labelBounds(canvas);
     const onLeft = c.x < cRect.width / 2;
+    const wantLeft = -NOTE_W - GAP;
+    const wantRight = cRect.width + GAP;
+    const x = onLeft
+      ? Math.max(bounds.min, wantLeft)
+      : Math.min(bounds.max, wantRight);
     setDraft({
       stroke: pts, targets,
-      labelAt: {
-        x: onLeft ? -196 : cRect.width + 18,
-        y: Math.max(-40, Math.min(cRect.height - 40, c.y - 30)),
-      },
+      labelAt: { x, y: Math.max(-40, Math.min(cRect.height - 40, c.y - 30)) },
     });
     setBody('');
   };
@@ -176,6 +198,8 @@ export function InkLayer({ slideId, mode, canvasRef, slideRef, annotations, sele
     ? { x: sRect.left - cRect.left, y: sRect.top - cRect.top, w: sRect.width, h: sRect.height }
     : null;
 
+  const bounds = canvasRef.current ? labelBounds(canvasRef.current) : null;
+
   const geom = (a: Annotation) => {
     const d = drag?.id === a.id ? drag : null;
     const sd = d?.part === 'stroke' ? d : null;
@@ -184,8 +208,10 @@ export function InkLayer({ slideId, mode, canvasRef, slideRef, annotations, sele
       x: p.x * off!.w + off!.x + (sd?.dx ?? 0),
       y: p.y * off!.h + off!.y + (sd?.dy ?? 0),
     }));
+    // clamp so a note can never end up beneath the rail or off the stage
+    const rawX = a.labelAt.x * cRect!.width + (ld?.dx ?? 0);
     const lab = {
-      x: a.labelAt.x * cRect!.width + (ld?.dx ?? 0),
+      x: bounds ? Math.min(Math.max(rawX, bounds.min), bounds.max) : rawX,
       y: a.labelAt.y * cRect!.height + (ld?.dy ?? 0),
     };
     return { pts, lab, anchor: { x: lab.x + 84, y: lab.y + 22 } };

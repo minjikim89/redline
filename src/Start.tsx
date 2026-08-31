@@ -68,7 +68,10 @@ export function Start({ onEnter }: { onEnter: () => void }) {
           onDragLeave={() => setOver(false)}
           onDrop={e => { e.preventDefault(); setOver(false); const f = e.dataTransfer.files[0]; if (f) take(f); }}
         >
-          <input type="file" accept=".html,.htm" hidden
+          {/* Not `hidden`: a hidden input takes no focus, which left the only
+              way to bring your own deck behind a mouse. */}
+          <input type="file" accept=".html,.htm" className="st-file"
+            aria-label="Choose an exported HTML deck"
             onChange={e => { const f = e.target.files?.[0]; if (f) take(f); }} />
           <span className="st-drop-t">Drop an exported HTML deck</span>
           <span className="st-drop-s">

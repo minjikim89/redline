@@ -5,7 +5,10 @@
   --bg:#EDEEF2; --chrome:#FFF; --chrome-ink:#14151C; --chrome-mut:#6B7080; --chrome-line:#E3E5EC;
   /* deck palette, verbatim from the authored artboard */
   --ink:#0B0B12; --paper:#F5F6FA; --white:#FFF;
-  --mut:#565C6E; --mut-src:#8A90A0; --mut-dark:#9BA0B0; --mut-meta:#6E7385;
+  --mut:#565C6E; --mut-src:#767D90; --mut-dark:#9BA0B0; --mut-meta:#6E7385;
+  /* the quiet end of the chrome. #9AA0AE read at 2.4:1 on its own panel — a
+     label nobody can read is not a quiet label, it is a missing one. */
+  --chrome-dim:#6B7080;
   --pink:#FF00C8; --violet:#9000FF; --cyan:#00A5C8;
   --track:#E4E8ED; --track-2:#F0F2F6; --bar-n:#B9C0CC; --bar-f:#DFE6E9;
 }
@@ -24,7 +27,8 @@ button{font:inherit;cursor:pointer;border:0;background:none;color:inherit}
   display:flex;flex-direction:column;padding:16px 12px;overflow:hidden}
 .brand{padding:0 6px 12px;border-bottom:1px solid var(--chrome-line);margin-bottom:10px}
 .brand strong{display:block;font:600 15px/1.2 'IBM Plex Sans';letter-spacing:-.015em}
-.brand span{font-size:11px;color:var(--chrome-mut)}
+.brand span{display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;
+  overflow:hidden;font-size:11px;line-height:1.35;color:var(--chrome-mut);overflow-wrap:break-word}
 .thumbs{list-style:none;margin:0;padding:0;overflow-y:auto;flex:1}
 .thumb{display:flex;align-items:center;gap:8px;width:100%;text-align:left;
   padding:6px 8px;border-radius:7px;color:var(--chrome-mut);font-size:12px;line-height:1.3}
@@ -40,27 +44,38 @@ button{font:inherit;cursor:pointer;border:0;background:none;color:inherit}
 .queue{display:flex;align-items:baseline;gap:5px;margin-top:10px;padding:8px 10px;
   border-radius:9px;background:#FDF0FA}
 .q-n{font:600 15px 'IBM Plex Sans';color:var(--pink);line-height:1}
-.q-l{flex:1;font-size:11px;color:#9A7A93}
-.q-x{font-size:10px;color:#BCA1B7;text-decoration:underline}
-.q-x:hover{color:var(--pink)}
+.q-l{flex:1;font-size:11px;color:#7E6178}
+.q-x{font-size:10px;color:#A8007F;text-decoration:underline}
+.q-x:hover{color:#8A0068}
 .mcp{margin-top:8px;padding:9px 10px;border-radius:9px;background:#F4F5F8;font-size:10.5px}
 .mcp.on{background:#ECF7F2}.mcp.off{background:#FCEDEA}
 .mcp-h{font-weight:600;margin-bottom:2px}
 .mcp-l{color:var(--chrome-mut);line-height:1.45;word-break:break-word}
 
+/* The wide gutters are where marks live, so they are worth keeping — but not at
+   a fixed 196px each side: below ~1300px they squeezed the toolbar into a
+   two-line stack and took the artboard down with it. */
 .stage{display:flex;flex-direction:column;align-items:center;justify-content:center;
-  padding:14px 196px 12px;overflow:hidden}
-.toolbar{display:flex;align-items:center;gap:7px;margin-top:10px;padding:5px 9px;
-  background:var(--chrome);border:1px solid var(--chrome-line);border-radius:9px}
+  padding:14px clamp(24px,7vw,196px) 12px;overflow:hidden;min-width:0}
+/* The artboard is absolutely positioned, so at a zoom past the fit it would
+   paint over the chrome. The toolbar has to stay reachable. */
+.toolbar{position:relative;z-index:2;display:flex;align-items:center;flex-wrap:wrap;
+  gap:7px;row-gap:5px;margin-top:10px;max-width:100%;
+  padding:5px 9px;background:var(--chrome);border:1px solid var(--chrome-line);border-radius:9px}
 .toolbar button{padding:4px 9px;border-radius:6px;font:500 11px 'IBM Plex Sans';
-  color:var(--chrome-mut);background:#F4F5F8}
+  white-space:nowrap;color:var(--chrome-mut);background:#F4F5F8}
 .toolbar button:hover:not(:disabled){background:#EAECF2;color:var(--chrome-ink)}
 .toolbar button:disabled{opacity:.35;cursor:not-allowed}
 .modes{display:flex;gap:2px;background:#F4F5F8;border-radius:7px;padding:2px}
 .modes button{background:transparent;padding:3px 9px}
 .modes button.on{background:#fff;color:var(--chrome-ink);box-shadow:0 1px 2px rgba(11,11,18,.14)}
 .tb-sep{width:1px;height:14px;background:var(--chrome-line)}
-.tb-hint{font-size:11px;color:var(--chrome-mut)}
+/* The replay writes a new sentence here every step, and this used to be an
+   unbounded column of single words that pushed the toolbar to nine lines and
+   took the artboard's scale down with it. Two lines is the ceiling. */
+.tb-hint{flex:1 1 190px;min-width:0;font-size:11px;line-height:1.35;
+  color:var(--chrome-mut);display:-webkit-box;-webkit-line-clamp:2;
+  -webkit-box-orient:vertical;overflow:hidden}
 
 /* ================= artboard ================= */
 /* Rendered at the size it was designed at, then scaled. Every px below is the
@@ -75,8 +90,9 @@ button{font:inherit;cursor:pointer;border:0;background:none;color:inherit}
 
 .sheet{position:absolute;inset:0;padding:88px 110px 80px;display:flex;flex-direction:column;gap:34px}
 .k{font-size:24px;font-weight:500;letter-spacing:.14em;text-transform:uppercase;color:var(--pink)}
-.h1{font-size:86px;font-weight:600;line-height:1.14;letter-spacing:-.02em}
-.h2{font-size:58px;font-weight:600;line-height:1.15;letter-spacing:-.015em;max-width:1500px}
+.h1{font-size:86px;font-weight:600;line-height:1.14;letter-spacing:-.02em;overflow-wrap:break-word}
+.h2{font-size:58px;font-weight:600;line-height:1.15;letter-spacing:-.015em;max-width:1500px;
+  overflow-wrap:break-word}
 .sheet-body{flex:1;display:flex;flex-direction:column;justify-content:center;min-height:0}
 /* structures that should breathe into the full body height */
 .sheet-body>.cards,.sheet-body>.tline,.sheet-body>.refs,.sheet-body>.flow-wrap,
@@ -214,7 +230,10 @@ button{font:inherit;cursor:pointer;border:0;background:none;color:inherit}
 /* The canvas is wider than the artboard so notes can live in the margin and
    point inward, the way a reviewer writes beside a printed page. */
 .fit{flex:1;width:100%;display:flex;align-items:center;justify-content:center;min-height:0}
-.canvas{position:relative;overflow:visible}
+/* `flex:none` matters: the canvas carries the artboard's own width, and notes in
+   the margin are positioned against that width. Letting flex shrink it past the
+   fit would put the ink and the notes in two different coordinate spaces. */
+.canvas{position:relative;overflow:visible;flex:none;isolation:isolate}
 .ink{position:absolute;inset:0;width:100%;height:100%;z-index:3;overflow:visible;
   pointer-events:auto;cursor:crosshair}
 /* in edit mode the surface still receives the press, then hands it to the text
@@ -252,11 +271,11 @@ button{font:inherit;cursor:pointer;border:0;background:none;color:inherit}
 .scribble.done>span:first-child,.scribble.done{text-decoration:none}
 .scribble.done .scribble-kind{text-decoration:none}
 .scribble-kind{display:block;font:600 8.5px 'IBM Plex Sans';letter-spacing:.17em;
-  opacity:.52;margin-bottom:2px}
+  opacity:.72;margin-bottom:2px}
 .scribble-reply{display:block;margin-top:7px;padding-left:9px;font-size:13.5px;
   border-left:2px solid currentColor;opacity:.92;text-transform:none;line-height:1.36}
 .mark-acts{display:flex;gap:4px;margin-top:7px;text-transform:none}
-.mark-acts button{padding:3px 8px;border-radius:6px;background:#F1EDE1;color:#7A7360;
+.mark-acts button{padding:3px 8px;border-radius:6px;background:#F1EDE1;color:#6B6552;
   font:500 10px 'IBM Plex Sans'}
 .mark-acts button:hover{background:#E7E1D0;color:#4A4436}
 .mark-acts button.danger:hover{background:#FBE3DD;color:#B3452A}
@@ -266,7 +285,7 @@ button{font:inherit;cursor:pointer;border:0;background:none;color:inherit}
   box-shadow:0 10px 30px rgba(11,11,18,.15)}
 .se-kinds{display:flex;gap:3px;margin-bottom:6px}
 .se-k{flex:1;padding:3px 0;border-radius:5px;font:500 9.5px 'IBM Plex Sans';
-  background:#F1EDE1;color:#8A8370}
+  background:#F1EDE1;color:#6B6552}
 .se-k.on{color:#fff}
 .se-k.on.k-fix{background:#E0761F}.se-k.on.k-research{background:#1D6BE0}
 .se-k.on.k-visualize{background:#9000FF}.se-k.on.k-explain{background:#0E9C7E}
@@ -276,15 +295,15 @@ button{font:inherit;cursor:pointer;border:0;background:none;color:inherit}
 .scribble-edit textarea:focus{outline:none}
 .scribble-edit textarea::placeholder{text-transform:none;color:#B6AE99;font-size:12.5px}
 .se-hit-row{margin-top:4px}
-.se-hit{font:9.5px 'IBM Plex Sans';color:#7D8AA8;overflow:hidden;text-overflow:ellipsis;
+.se-hit{font:9.5px 'IBM Plex Sans';color:#5F6B87;overflow:hidden;text-overflow:ellipsis;
   white-space:nowrap;display:block}
-.se-hit.dim{color:#C5BDAB}
+.se-hit.dim{color:#7A7360}
 .se-foot{display:flex;justify-content:space-between;align-items:center;margin-top:5px;
-  padding-top:5px;border-top:1px solid #F0EAD8;font:9.5px 'IBM Plex Sans';color:#A79F8A}
-.se-redo{font:10px 'IBM Plex Sans';color:#A79F8A;text-decoration:underline}
-.se-redo:hover{color:#7A7360}
+  padding-top:5px;border-top:1px solid #F0EAD8;font:9.5px 'IBM Plex Sans';color:#6B6552}
+.se-redo{font:10px 'IBM Plex Sans';color:#6B6552;text-decoration:underline}
+.se-redo:hover{color:#4A4436}
 .se-key kbd{font:9.5px ui-monospace,Menlo,monospace;background:#F1EDE1;border-radius:3px;
-  padding:1px 4px;color:#8A8370}
+  padding:1px 4px;color:#6B6552}
 
 button:focus-visible,textarea:focus-visible{outline:2px solid var(--pink);outline-offset:2px;
   border-radius:6px}
@@ -303,12 +322,13 @@ button:focus-visible,textarea:focus-visible{outline:2px solid var(--pink);outlin
 @keyframes cfpulse{0%,100%{box-shadow:0 0 0 8px rgba(232,163,61,.16)}
   50%{box-shadow:0 0 0 14px rgba(232,163,61,.07)}}
 
-.conflict{position:absolute;left:0;right:0;top:calc(100% + 14px);z-index:7;
+/* Laid out by the stage, so the artboard's fit makes room for it. */
+.conflict{align-self:stretch;margin-top:12px;
   background:#FFF8EC;border:1px solid #F0DCB4;border-left:4px solid #E8A33D;
   border-radius:10px;padding:12px 16px 11px;box-shadow:0 8px 24px rgba(11,11,18,.10)}
 .cf-h{display:flex;align-items:baseline;gap:8px;margin-bottom:6px}
 .cf-tag{font:600 10px 'IBM Plex Sans';letter-spacing:.12em;text-transform:uppercase;color:#A96A11}
-.cf-src{font-size:10.5px;color:#B79A6A}
+.cf-src{font-size:10.5px;color:#7A6A50}
 .cf-claim{margin:0 0 4px;font:500 13.5px 'IBM Plex Sans';color:#3B3225}
 .cf-why{margin:0 0 9px;font-size:12px;line-height:1.5;color:#7A6A50}
 .cf-acts{display:flex;gap:7px}
@@ -322,12 +342,12 @@ button:focus-visible,textarea:focus-visible{outline:2px solid var(--pink);outlin
 .trail{margin-top:8px;padding:9px 10px;border-radius:9px;background:#F4F5F8;max-height:150px;
   overflow:hidden;display:flex;flex-direction:column}
 .trail-h{font:600 9px 'IBM Plex Sans';letter-spacing:.14em;text-transform:uppercase;
-  color:#9AA0AE;margin-bottom:5px}
+  color:var(--chrome-dim);margin-bottom:5px}
 .trail ol{list-style:none;margin:0;padding:0;overflow-y:auto;display:flex;flex-direction:column;gap:3px}
 .trail li{display:flex;flex-direction:column;line-height:1.3}
 .trail code{font:600 10px ui-monospace,Menlo,monospace;color:#1D6BE0}
 .trail li.bad code{color:#C2410C}
-.trail li span{font-size:9.5px;color:#9AA0AE;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.trail li span{font-size:9.5px;color:var(--chrome-dim);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 
 .wait{color:var(--pink);font-weight:700;letter-spacing:.06em}
 .scribble-reply.human{border-left-color:#8A93A8;opacity:.85}
@@ -337,7 +357,7 @@ button:focus-visible,textarea:focus-visible{outline:2px solid var(--pink);outlin
   text-transform:uppercase;letter-spacing:.02em;color:#3A4152}
 .hr textarea:focus{outline:none;border-color:var(--pink)}
 .hr textarea::placeholder{text-transform:none;font-size:11.5px;color:#B6AE99}
-.hr-key{display:block;margin-top:3px;font:8.5px 'IBM Plex Sans';color:#A79F8A}
+.hr-key{display:block;margin-top:3px;font:8.5px 'IBM Plex Sans';color:#6B6552}
 .hr-key kbd{background:#F1EDE1;border-radius:3px;padding:0 3px}
 
 /* ---------- direct editing ---------- */
@@ -353,7 +373,7 @@ button:focus-visible,textarea:focus-visible{outline:2px solid var(--pink);outlin
   align-items:center;gap:4px;padding:5px 8px;background:var(--chrome);
   border:1px solid var(--chrome-line);border-radius:9px}
 .formpick>span{font:600 9px 'IBM Plex Sans';letter-spacing:.12em;text-transform:uppercase;
-  color:#9AA0AE;margin-right:2px}
+  color:var(--chrome-dim);margin-right:2px}
 .formpick button{padding:3px 9px;border-radius:6px;font:500 11px 'IBM Plex Sans';
   background:#F4F5F8;color:var(--chrome-mut)}
 .formpick button:hover{background:#EAECF2;color:var(--chrome-ink)}
@@ -378,14 +398,14 @@ button:focus-visible,textarea:focus-visible{outline:2px solid var(--pink);outlin
 .insp-h{display:flex;align-items:baseline;justify-content:space-between;gap:8px;
   padding:14px 14px 11px;border-bottom:1px solid var(--chrome-line)}
 .insp-h strong{font:600 12.5px 'IBM Plex Sans';letter-spacing:-.01em}
-.insp-h code{font:10px ui-monospace,Menlo,monospace;color:#9AA0AE}
+.insp-h code{font:10px ui-monospace,Menlo,monospace;color:var(--chrome-dim)}
 .insp-body{flex:1;overflow-y:auto;padding:12px 14px;display:flex;flex-direction:column;gap:11px}
 .insp-foot{margin:0;padding:9px 14px;border-top:1px solid var(--chrome-line);
-  font-size:9.5px;line-height:1.45;color:#9AA0AE}
+  font-size:9.5px;line-height:1.45;color:var(--chrome-dim)}
 
 .fld{display:flex;align-items:center;gap:8px}
 .fld.col{flex-direction:column;align-items:stretch;gap:4px}
-.fld-k{flex:none;width:66px;font:500 10px 'IBM Plex Sans';color:#8B92A3;
+.fld-k{flex:none;width:66px;font:500 10px 'IBM Plex Sans';color:var(--chrome-dim);
   text-transform:lowercase;letter-spacing:.02em}
 .fld.col .fld-k{width:auto}
 .fld input,.fld textarea{flex:1;min-width:0;border:1px solid var(--chrome-line);border-radius:6px;
@@ -397,16 +417,16 @@ button:focus-visible,textarea:focus-visible{outline:2px solid var(--pink);outlin
 .fld .col{flex:none;width:30px;height:24px;padding:1px;cursor:pointer}
 .seg{flex:1;display:flex;gap:2px;background:#F4F5F8;border-radius:6px;padding:2px}
 .seg button{flex:1;padding:3px 4px;border-radius:4px;font:500 10px 'IBM Plex Sans';
-  color:#8B92A3;text-transform:lowercase}
+  color:var(--chrome-dim);text-transform:lowercase}
 .seg button:hover{background:#fff}
 .seg button.on{background:var(--pink);color:#fff}
 .tog{padding:3px 11px;border-radius:6px;background:#F4F5F8;font:500 10px 'IBM Plex Sans';
-  color:#8B92A3}
+  color:var(--chrome-dim)}
 .tog.on{background:var(--pink);color:#fff}
 
 .listf{display:flex;flex-direction:column;gap:7px;padding-top:9px;border-top:1px solid #EFF0F4}
 .listf-h{display:flex;align-items:center;justify-content:space-between}
-.listf-h span{font:600 10px 'IBM Plex Sans';letter-spacing:.1em;text-transform:uppercase;color:#9AA0AE}
+.listf-h span{font:600 10px 'IBM Plex Sans';letter-spacing:.1em;text-transform:uppercase;color:var(--chrome-dim)}
 .listf-h button{padding:2px 8px;border-radius:5px;background:#F4F5F8;
   font:500 10px 'IBM Plex Sans';color:#6B7080}
 .listf-h button:hover:not(:disabled){background:#EAECF2}
@@ -414,15 +434,17 @@ button:focus-visible,textarea:focus-visible{outline:2px solid var(--pink);outlin
 .listf-row{display:flex;flex-direction:column;gap:5px;padding:8px;border-radius:7px;background:#FAFAFC}
 .listf-ops{display:flex;gap:2px;justify-content:flex-end}
 .listf-ops button{width:19px;height:19px;border-radius:4px;background:#EFF0F4;
-  font-size:10px;color:#8B92A3;display:grid;place-items:center}
+  font-size:10px;color:var(--chrome-dim);display:grid;place-items:center}
 .listf-ops button:hover:not(:disabled){background:#E2E4EB;color:var(--chrome-ink)}
 .listf-ops button:disabled{opacity:.3;cursor:not-allowed}
 .listf-ops .rm:hover:not(:disabled){background:#FBE3DD;color:#B3452A}
 
 /* ---------- the way in ---------- */
-.start{height:100%;display:grid;place-items:center;padding:24px;
+.start{height:100%;display:flex;overflow-y:auto;padding:24px;
   background:radial-gradient(1200px 600px at 50% -10%,#F7EAF6 0%,var(--bg) 60%)}
-.start-card{width:100%;max-width:452px;background:var(--chrome);border:1px solid var(--chrome-line);
+/* auto margins centre it, and collapse instead of clipping when the card is
+   taller than the window — grid centring put the top out of reach. */
+.start-card{margin:auto;width:100%;max-width:452px;background:var(--chrome);border:1px solid var(--chrome-line);
   border-radius:16px;padding:26px 26px 20px;box-shadow:0 2px 6px rgba(11,11,18,.04),0 24px 60px rgba(11,11,18,.09)}
 .start-card header{margin-bottom:20px}
 .start-card header strong{display:block;font:600 19px 'IBM Plex Sans';letter-spacing:-.02em}
@@ -436,11 +458,17 @@ button:focus-visible,textarea:focus-visible{outline:2px solid var(--pink);outlin
 
 .st-or{display:flex;align-items:center;gap:10px;margin:16px 0 12px}
 .st-or::before,.st-or::after{content:'';flex:1;height:1px;background:var(--chrome-line)}
-.st-or span{font-size:10.5px;color:#A3A8B6}
+.st-or span{font-size:10.5px;color:var(--chrome-dim)}
 
-.st-drop{display:flex;flex-direction:column;gap:3px;padding:20px 16px;border-radius:11px;
-  border:1.5px dashed var(--chrome-line);text-align:center;cursor:pointer;
+.st-drop{position:relative;display:flex;flex-direction:column;gap:3px;padding:20px 16px;
+  border-radius:11px;border:1.5px dashed var(--chrome-line);text-align:center;cursor:pointer;
   transition:border-color .15s,background .15s}
+/* Clipped, not `hidden` — a clipped input still takes focus, and the <label>
+   around it keeps the whole drop zone clickable. */
+.st-file{position:absolute;width:1px;height:1px;padding:0;margin:-1px;
+  overflow:hidden;clip-path:inset(50%);white-space:nowrap;border:0}
+.st-drop:focus-within{border-color:var(--pink);background:#FEF5FC;
+  box-shadow:0 0 0 3px rgba(255,0,200,.18)}
 .st-drop:hover,.st-drop.over{border-color:var(--pink);background:#FEF5FC}
 .st-drop-t{font:500 12.5px 'IBM Plex Sans'}
 .st-drop-s{font-size:10.5px;line-height:1.45;color:var(--chrome-mut)}
@@ -453,13 +481,13 @@ button:focus-visible,textarea:focus-visible{outline:2px solid var(--pink);outlin
 .st-r-types{list-style:none;margin:0;padding:0;display:flex;flex-wrap:wrap;gap:5px}
 .st-r-types li{padding:2px 8px;border-radius:20px;background:#fff;font-size:10.5px;color:var(--chrome-mut)}
 .st-r-types b{color:var(--chrome-ink)}
-.st-r-warn{margin:8px 0 0;padding-left:15px;font-size:10px;line-height:1.5;color:#A96A11}
+.st-r-warn{margin:8px 0 0;padding-left:15px;font-size:10px;line-height:1.5;color:#8A5609}
 .st-go{width:100%;margin-top:11px;padding:8px;border-radius:8px;background:var(--pink);
   color:#fff;font:600 12.5px 'IBM Plex Sans'}
 .st-go:hover{background:#E000B2}
 .st-foot{margin:18px 0 0;padding-top:14px;border-top:1px solid var(--chrome-line);
-  font-size:10.5px;line-height:1.5;color:#A3A8B6}
+  font-size:10.5px;line-height:1.5;color:var(--chrome-dim)}
 .st-try{display:block;width:100%;margin-top:9px;padding:5px;border-radius:7px;
   font:500 10.5px 'IBM Plex Sans';color:var(--chrome-mut);background:transparent}
 .st-try:hover:not(:disabled){background:#F4F5F8;color:var(--chrome-ink)}
-.st-try:disabled{opacity:.5}
+.st-try:disabled{opacity:.5;cursor:not-allowed}

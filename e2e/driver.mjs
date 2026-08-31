@@ -73,6 +73,20 @@ export async function connect(port = 9222) {
       await ev('mouseReleased', x + rx, y);
       await sleep(400);
     },
+    /** A real press-move-release, so Chrome synthesises the pointer events React listens for. */
+    async drag(x1, y1, x2, y2, steps = 10) {
+      const ev = (type, x, y, buttons) => send('Input.dispatchMouseEvent', {
+        type, x: Math.round(x), y: Math.round(y), button: 'left', buttons,
+        clickCount: 1, pointerType: 'mouse',
+      });
+      await ev('mousePressed', x1, y1, 1);
+      for (let i = 1; i <= steps; i++) {
+        await ev('mouseMoved', x1 + ((x2 - x1) * i) / steps, y1 + ((y2 - y1) * i) / steps, 1);
+        await sleep(16);
+      }
+      await ev('mouseReleased', x2, y2, 0);
+      await sleep(400);
+    },
     async type(text) { await send('Input.insertText', { text }); await sleep(150); },
     async key(key, code = key, vk = 0) {
       for (const type of ['keyDown', 'keyUp']) {

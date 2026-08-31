@@ -1,3 +1,4 @@
+import { Fragment } from 'react';
 import { A, Sheet, BarRow, BarGroup } from '../slideKit';
 
 const PINK = '#FF00C8', VIOLET = '#9000FF', CYAN = '#00A5C8';
@@ -94,15 +95,15 @@ export function FlowSlide({ kicker, accent, title, steps, chart, notes, source, 
       <div className="flow-wrap">
         <div className="flow">
           {steps?.map((s: any, i: number) => (
-            <>
-              {i > 0 && <span key={`a${i}`} className="flow-arrow" style={{ color: accent }}>→</span>}
-              <A key={s.head} id={`step.${i}`} label={`step: ${s.head}`} className="flow-card">
+            <Fragment key={s.head ?? i}>
+              {i > 0 && <span className="flow-arrow" style={{ color: accent }}>→</span>}
+              <A id={`step.${i}`} label={`step: ${s.head}`} className="flow-card">
                 <A id={`step.${i}.head`} label={`step: ${s.head}`}
                   path={`steps.${i}.head`} className="flow-head">{s.head}</A>
                 <A id={`step.${i}.body`} label={`step note: ${s.head}`}
                   path={`steps.${i}.body`} className="flow-body">{s.body}</A>
               </A>
-            </>
+            </Fragment>
           ))}
         </div>
         <div className="flow-lower">

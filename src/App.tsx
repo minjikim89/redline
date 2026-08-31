@@ -255,26 +255,6 @@ export default function App() {
                 ))}
               </div>
             )}
-            {slide.conflict && (
-              <div className="conflict">
-                <div className="cf-h">
-                  <span className="cf-tag">agent flagged a claim</span>
-                  <span className="cf-src">from the figure it just verified</span>
-                </div>
-                <p className="cf-claim">“{slide.conflict.claim}”</p>
-                <p className="cf-why">{slide.conflict.why}</p>
-                <div className="cf-acts">
-                  <button className="cf-keep" onClick={() => store.clearConflict(slide.id)}>
-                    keep the claim
-                  </button>
-                  <button className="cf-edit" onClick={() => {
-                    const next = prompt('Rewrite the claim:', String(slide.props.title ?? ''));
-                    if (next) store.updateSlideProps(slide.id, { title: next });
-                    store.clearConflict(slide.id);
-                  }}>rewrite it</button>
-                </div>
-              </div>
-            )}
             <InkLayer
               slideId={slide.id}
               mode={mode}
@@ -286,6 +266,30 @@ export default function App() {
             />
           </div>
         </div>
+
+        {/* The banner is chrome about the slide, not part of the artboard. It sits
+            in the stage's own column so the fit gives it room — parked under the
+            canvas it landed on top of the toolbar, and its two buttons with it. */}
+        {slide.conflict && (
+          <div className="conflict">
+            <div className="cf-h">
+              <span className="cf-tag">agent flagged a claim</span>
+              <span className="cf-src">from the figure it just verified</span>
+            </div>
+            <p className="cf-claim">“{slide.conflict.claim}”</p>
+            <p className="cf-why">{slide.conflict.why}</p>
+            <div className="cf-acts">
+              <button className="cf-keep" onClick={() => store.clearConflict(slide.id)}>
+                keep the claim
+              </button>
+              <button className="cf-edit" onClick={() => {
+                const next = prompt('Rewrite the claim:', String(slide.props.title ?? ''));
+                if (next) store.updateSlideProps(slide.id, { title: next });
+                store.clearConflict(slide.id);
+              }}>rewrite it</button>
+            </div>
+          </div>
+        )}
 
         <div className="toolbar">
           <div className="modes">

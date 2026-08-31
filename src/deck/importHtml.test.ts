@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { importHtml } from './importHtml';
+import { registry } from './registry';
 
 const page = (...sections: string[]) =>
   `<!doctype html><html><head><title>Test Deck</title></head><body>${sections
@@ -59,13 +60,13 @@ describe('importHtml', () => {
     expect(r.deck.slides[1].props.groups.length).toBeGreaterThan(0);
   });
 
-  it('keeps a source line off the body', () => {
+  it('keeps a source line off the body, in a slot the slide actually renders', () => {
     const r = importHtml(page(
       '<h1>Cover</h1>',
       '<h2>A finding</h2><p>Something long enough to count as a body paragraph on this slide.</p>'
       + '<div>Source: the ledger</div>',
     ), 'x.html');
-    expect(r.deck.slides[1].props.source).toMatch(/^Source:/);
+    expect(r.deck.slides[1].props.footnote).toMatch(/^Source:/);
   });
 
   /* ---------- edges ---------- */
@@ -339,5 +340,31 @@ describe('importHtml — text the parser must not misread', () => {
     let inner = '<p>The body copy buried at the bottom of the well.</p>';
     for (let i = 0; i < 400; i++) inner = `<div>${inner}</div>`;
     expect(() => importHtml(page('<h1>Cover</h1>', inner), 'x.html')).not.toThrow();
+  });
+});
+
+/**
+ * The registry is the contract for what an agent may write and for what the
+ * component draws. An importer that invents a prop outside it produces text
+ * that survives export and is invisible on the artboard.
+ */
+describe('importHtml — stays inside the registry', () => {
+  it('only writes props the slide type declares', () => {
+    const html = page(
+      '<div>BRIEFING</div><h1>The Cover</h1><p>A standfirst long enough to be read as one.</p>',
+      '<div>THE NUMBER</div><div>$202M</div><p>A qualifying sentence about that figure, long enough.</p><div>Source: a ledger</div>',
+      '<h2>A prose slide</h2><p>Body copy that is long enough to count as a real paragraph here.</p><div>Source: a ledger</div>',
+      '<h2>References and notes</h2><p>Source: one citation that is long enough to be a group.</p>'
+      + '<p>Source: a second citation that is also long enough to count.</p>',
+    );
+    const r = importHtml(html, 'x.html');
+    for (const s of r.deck.slides) {
+      const allowed = new Set([...Object.keys(registry[s.type].propSchema), 'meta', 'cards', 'groups']);
+      for (const [k, v] of Object.entries(s.props)) {
+        if (v === undefined) continue;
+        expect({ type: s.type, prop: k, allowed: [...allowed] })
+          .toMatchObject({ allowed: expect.arrayContaining([k]) });
+      }
+    }
   });
 });

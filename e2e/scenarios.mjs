@@ -771,8 +771,6 @@ if (want('F')) {
     await nav('?blank=1&deck=1');
     await goSlide(4);
     await bare('i');
-    const rows = () => d.$(`document.querySelectorAll('.insp .listf').length
-      ? document.querySelectorAll('.insp .listf:first-of-type .listf-row').length : 0`);
     const model = async () => (await props('s04')).left.rows.map(r => r.label);
 
     const before = await model();
@@ -917,16 +915,48 @@ if (want('G')) {
     return `${base}% held`;
   });
 
-  await t.check('the artboard never overflows its container, at any zoom', async () => {
+  await t.check('at the fit zoom the artboard sits exactly inside its container', async () => {
     await nav('?blank=1&deck=1');
-    const seen = [];
-    for (let i = 0; i < 22; i++) { await bare('+'); }          // ride it to the 3× cap
-    seen.push([await pct(), await overflow()]);
-    for (let i = 0; i < 34; i++) { await bare('-'); }          // and down to the 0.4× floor
-    seen.push([await pct(), await overflow()]);
-    const bad = seen.filter(([, o]) => o.w > 1 || o.h > 1);
-    assert(bad.length === 0, `canvas escapes .fit at ${JSON.stringify(bad)}`);
-    return seen.map(([p, o]) => `${p}% w+${o.w} h+${o.h}`).join(' · ');
+    await d.sleep(400);
+    const o = await overflow();
+    assert(o.w <= 1 && o.h <= 1, `canvas escapes .fit at rest: ${JSON.stringify(o)}`);
+    return `w+${o.w} h+${o.h}`;
+  });
+
+  await t.check('the canvas box keeps the artboard size at every zoom', async () => {
+    await nav('?blank=1&deck=1');
+    const bad = [];
+    for (let i = 0; i < 24; i++) {
+      await bare('+');
+      const m = await d.$(`(()=>{const c=document.querySelector('.canvas'),s=document.querySelector('.slide');
+        return {declared:Math.round(parseFloat(c.style.width)),box:Math.round(c.getBoundingClientRect().width),
+                art:Math.round(s.getBoundingClientRect().width)}})()`);
+      if (Math.abs(m.declared - m.box) > 1 || Math.abs(m.box - m.art) > 1) bad.push([await pct(), m]);
+    }
+    assert(bad.length === 0,
+      `the canvas box stopped matching the artboard — notes and ink fall into different spaces: ${JSON.stringify(bad.slice(0, 2))}`);
+    return `held to ${await pct()}%`;
+  });
+
+  await t.check('the toolbar stays on top and clickable at any zoom', async () => {
+    await nav('?blank=1&deck=1');
+    const bad = [];
+    for (let i = 0; i < 24; i++) {
+      await bare('+');
+      const hit = await d.$(`(()=>{const b=document.querySelector('.toolbar .replay').getBoundingClientRect();
+        const e=document.elementFromPoint(b.left+b.width/2,b.top+b.height/2);
+        return e?.closest('.toolbar')?'toolbar':(e?.className?.baseVal??e?.className??e?.tagName)})()`);
+      if (hit !== 'toolbar') bad.push([await pct(), hit]);
+    }
+    assert(bad.length === 0, `the artboard buried the toolbar: ${JSON.stringify(bad.slice(0, 3))}`);
+    // …and the artboard is still clipped to the stage, so it never covers the rail
+    const overRail = await d.$(`(()=>{const s=document.querySelector('.slide').getBoundingClientRect();
+      const r=document.querySelector('.rail').getBoundingClientRect();
+      return Math.round(Math.min(s.right,r.right)-Math.max(s.left,r.left))})()`);
+    const railHit = await d.$(`(()=>{const r=document.querySelector('.rail .thumb').getBoundingClientRect();
+      return !!document.elementFromPoint(r.left+8,r.top+8)?.closest('.rail')})()`);
+    eq(railHit, true, `the artboard covered the rail (geometric overlap ${overRail}px)`);
+    return `toolbar and rail live up to ${await pct()}%`;
   });
 
   await t.check('marks stay on their element through a zoom', async () => {

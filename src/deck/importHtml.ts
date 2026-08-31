@@ -245,7 +245,10 @@ function classify(read: Read, index: number): { type: SlideType; props: any; ton
     type: 'cards',
     props: {
       kicker: cap(kicker ?? '', 60), title: cap(heading, 200),
-      source: source === undefined ? undefined : cap(source, 300),
+      // "cards" declares a footnote, not a source. Writing a prop the type does
+      // not declare puts the line where nothing renders it: it survives export
+      // but is invisible on the artboard, which is the worst of both.
+      footnote: source === undefined ? undefined : cap(source, 400),
       cards: (bodies.length ? bodies : [empty]).map((b, i) => ({
         index: String(i + 1).padStart(2, '0'),
         head: cap(b.split(/[.;]/)[0], 60),

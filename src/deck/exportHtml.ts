@@ -43,7 +43,10 @@ function body(s: Slide): string {
         const dup = !!head && String(c.body ?? '').startsWith(head);
         return `<div class="card"><div class="eyebrow">${esc(c.index)}</div>`
           + (dup ? '' : `<h3>${esc(c.head)}</h3>`) + `${para(c.body)}</div>`;
-      }).join('') + (p.footnote ? para(p.footnote) : '');
+      }).join('')
+        // Marked, so it comes back as the footnote it left as rather than as
+        // one more card body.
+        + (p.footnote ? `<div class="footnote">${esc(p.footnote)}</div>` : '');
     case 'barsPair':
       return bars(p.left) + bars(p.right);
     case 'flow':

@@ -270,7 +270,11 @@ function classify(read: Read, index: number): { type: SlideType; props: any; ton
     };
   }
   if (blocks.filter(isSource).length > 1 || /reference|sources/i.test(heading)) {
-    const pairs = rest.filter(b => b.length > 20);
+    // A reference that opens with its own "Source:" label would surface a
+    // topic literally called "Source" — strip the label and let the citation
+    // speak for itself.
+    const deLabel = (b: string) => b.replace(/^(sources?|출처)\b[\s:：.–—-]*/i, '');
+    const pairs = rest.filter(b => b.length > 20).map(deLabel);
     return {
       type: 'refs',
       props: {
@@ -304,12 +308,14 @@ function classify(read: Read, index: number): { type: SlideType; props: any; ton
         // the same sentence twice on one card; slicing it out reads as authored.
         const h = headOf(b);
         const rest = b.slice(h.length).replace(/^[\s.;!?]+/, '');
+        // A clause too long to be a heading is not one — a truncated sentence
+        // wearing an ellipsis is a guess the reader can see failing. The card
+        // simply runs headless and carries the full text as body.
+        const fits = h.length <= 60;
         return {
           index: String(i + 1).padStart(2, '0'),
-          head: cap(h, 60),
-          // A clause that is the whole block leaves no remainder; the body
-          // keeps the full block so no text is ever lost to a heading guess.
-          body: cap(h.length > 60 || !rest ? b : rest, 300),
+          head: fits ? h : '',
+          body: cap(fits && rest ? rest : b, 300),
         };
       }),
     },

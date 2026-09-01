@@ -1,6 +1,6 @@
 # Redline — STATUS
 
-**Last updated**: 2026-09-02
+**Last updated**: 2026-09-02 (quality overhaul pass)
 **External deadline**: 2026-09-04 05:00 KST (OpenAI WebMCP Challenge, Devpost) — **D-2**
 
 | | |
@@ -8,7 +8,7 @@
 | Live | https://minjikim89.github.io/redline/ |
 | Repo | https://github.com/minjikim89/redline (public, MIT) |
 | Deploy | GitHub Actions → Pages, on every push to `main` |
-| Tests | `npm test` — 130 unit · `node e2e/scenarios.mjs` — 97 e2e |
+| Tests | `npm test` — 137 unit · `node e2e/scenarios.mjs` — phases A–K green (new K covers scope, edit_items, persistence, note editing, lossless round trip). Harness note: restart vite before a run — editing files mid-run splits the harness's store module from the app's via `?t=` invalidation |
 
 ## What it is
 
@@ -19,6 +19,25 @@ live deck, and replies on the same pin.
 
 Deliberately **not** a generator. Generation is solved; the loop after it is not —
 the moment you fix a slide by hand, the model goes blind.
+
+## Quality overhaul (2026-09-02, from a real ChatGPT-desktop session)
+
+A first real session surfaced four product failures; all fixed and committed:
+
+1. **Round trip was lossy** — export→import collapsed 9 of 12 slide types into
+   junk cards ("2025, +5" heads). Export now embeds the typed model as a JSON
+   island; import restores exactly. Foreign HTML keeps the (improved) heuristics;
+   unreadable files are refused with a reason.
+2. **No persistence** — the agent's own edits vanished on reload ("the deck
+   session had reset"). Deck/queue/scope persist in localStorage; entry screen
+   offers Continue. `?fresh=1` ignores the save.
+3. **No scope control** — agent bulk-"fixed" slides nobody marked. New scope
+   switch (default noted-only) + `OUT_OF_SCOPE` errors; `unify_across_slides`
+   exempt as the watched, cancellable batch. `edit_items` adds structural
+   editing (remove a block instead of rewriting around it).
+4. **Notes felt like a toy and were immutable once pinned** — notes are now
+   compact comment cards (expand on hover), editable after pinning (body+kind),
+   clear asks first, conflict rewrite is inline (no `prompt()`).
 
 ## Blockers
 
@@ -35,7 +54,7 @@ the moment you fix a slide by hand, the model goes blind.
 1. **Name it**, then rename repo + `base` in `vite.config.ts` + README + SUBMISSION.md.
 2. **Verify in the ChatGPT desktop in-app browser** against the deployed URL — this
    is the one check that cannot be automated (a subagent cannot drive the native
-   app). Watch for: 10 tools in one snapshot; `set_chart_form` choosing `cards`;
+   app). Watch for: 11 tools in one snapshot; `set_chart_form` choosing `cards`;
    the amber conflict banner on s08; the source sweep going through
    `unify_across_slides` once rather than `set_slide_text` three times.
 3. **Record the 3-minute video.** Proposed cut: entry screen and upload (20s) →
@@ -58,7 +77,7 @@ the moment you fix a slide by hand, the model goes blind.
 
 ## Where the WebMCP work actually sits
 
-`src/webmcp/tools.ts` is the whole surface. Ten tools; three exist only while a
+`src/webmcp/tools.ts` is the whole surface. Eleven tools; three exist only while a
 note of the matching kind is open and are unregistered via `AbortController` when
 it closes — so marking up the deck authors the agent's toolset. Nothing calls a
 model: the page supplies structure, the agent supplies intelligence, so there are

@@ -18,6 +18,8 @@ type State = {
    * table. 'all' opens the whole deck. The person owns this switch.
    */
   scope: 'noted' | 'all';
+  /** The last region a TOOL wrote to — the page lights it up for a beat. */
+  touch?: { seq: number; slideId: string; root: string };
 };
 
 // `?blank=1` opens an unmarked deck; the default shows the review already in progress.
@@ -187,11 +189,11 @@ export function updateSlideProps(slideId: string, patch: Record<string, unknown>
 
 export function addAnnotation(a: {
   slideId: string; targets: Target[]; stroke: Pt[]; labelAt: Pt;
-  kind: AnnotationKind; body: string; author?: Author;
+  kind: AnnotationKind; body: string; author?: Author; anchorAt?: Pt;
 }): Annotation {
   const ann: Annotation = {
     id: uid('ann'), slideId: a.slideId, targets: a.targets, stroke: a.stroke,
-    labelAt: a.labelAt, kind: a.kind,
+    anchorAt: a.anchorAt, labelAt: a.labelAt, kind: a.kind,
     body: a.body, status: 'open', author: a.author ?? 'human', replies: [], at: now(),
   };
   set({ annotations: [...state.annotations, ann] });
@@ -223,8 +225,16 @@ export function resolveAnnotation(id: string) {
   return state.annotations.find(a => a.id === id) ?? null;
 }
 
-/** Reposition a mark. One history entry per drag, committed on pointer-up. */
-export function moveAnnotation(id: string, d: { label?: Pt; stroke?: Pt }) {
+/**
+ * Reposition a mark. One history entry per drag, committed on pointer-up —
+ * the re-aimed targets ride in the SAME entry, or a single undo would peel
+ * the anchor off while leaving the stroke where it was dragged to.
+ */
+export function moveAnnotation(
+  id: string,
+  d: { label?: Pt; stroke?: Pt },
+  aim?: { targets: Target[]; anchorAt?: Pt },
+) {
   set({
     annotations: state.annotations.map(a => a.id !== id ? a : {
       ...a,
@@ -232,6 +242,7 @@ export function moveAnnotation(id: string, d: { label?: Pt; stroke?: Pt }) {
       stroke: d.stroke
         ? a.stroke.map(p => ({ x: p.x + d.stroke!.x, y: p.y + d.stroke!.y }))
         : a.stroke,
+      ...(aim && { targets: aim.targets, anchorAt: aim.anchorAt }),
     }),
   });
 }
@@ -245,6 +256,14 @@ export const select = (id: string | null) => {
   state = { ...state, selected: id };
   emit();
 };
+
+/* Tool writes announce where they landed, so the page can light the region up.
+   Transient like selection: never in history, never persisted. */
+let touchSeq = 0;
+export function markTouch(slideId: string, root: string) {
+  state = { ...state, touch: { seq: ++touchSeq, slideId, root } };
+  emit();
+}
 
 /** The slides the person has marked — the agent's work order. */
 export function notedSlideIds(): string[] {
@@ -262,7 +281,9 @@ export function setScope(scope: 'noted' | 'all') {
  * A note is the author's to change after it is pinned. Body and kind only —
  * the stroke is redrawn, not edited, and status has its own verbs.
  */
-export function updateAnnotation(id: string, patch: { body?: string; kind?: AnnotationKind }) {
+export function updateAnnotation(id: string, patch: {
+  body?: string; kind?: AnnotationKind; targets?: Target[]; anchorAt?: Pt;
+}) {
   set({
     annotations: state.annotations.map(a =>
       a.id === id ? { ...a, ...patch } : a),
@@ -275,6 +296,22 @@ export function reopenAnnotation(id: string) {
     annotations: state.annotations.map(a =>
       a.id === id ? { ...a, status: 'open' as const } : a),
   });
+}
+
+/**
+ * A full snapshot and its restore — the scripted pass runs on the sample deck,
+ * and whatever the person actually had comes back the moment it ends. Losing an
+ * imported deck to a demo button is the worst trade a review surface can make.
+ */
+export function snapshot(): State {
+  return JSON.parse(JSON.stringify({ ...state, calls: [] }));
+}
+
+export function restore(snap: State) {
+  past.length = 0; future.length = 0;
+  state = { ...snap, selected: null };
+  persist();
+  emit();
 }
 
 /** Put the deck and the queue back to how the page opened. */

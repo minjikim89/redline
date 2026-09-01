@@ -70,6 +70,13 @@ export interface Annotation {
   targets: Target[];
   /** The stroke itself, normalized to the slide box so it scales with zoom. */
   stroke: Pt[];
+  /**
+   * Where the anchor element's centre sat when the mark was drawn (slide-
+   * normalized). Rendering offsets the stroke by how far that centre has moved
+   * since — so a reflow carries the circle with the thing it circles, while
+   * the drawn shape and placement stay exactly as the hand left them.
+   */
+  anchorAt?: Pt;
   /** Where the note text sits, normalized to the canvas (may fall outside 0..1). */
   labelAt: Pt;
   kind: AnnotationKind;

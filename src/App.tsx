@@ -8,7 +8,7 @@ import { exportHtml } from './deck/exportHtml';
 import { ARTBOARD } from './deck/theme';
 import { InkLayer, type Mode } from './annotations/InkLayer';
 import * as store from './annotations/store';
-import { registerAll, syncConditionalTools, webmcpSupported } from './webmcp/tools';
+import { advertisedTools, registerAll, syncConditionalTools, webmcpSupported } from './webmcp/tools';
 import { buildScript, runScript } from './annotations/replay';
 
 /** Outlines the region an agent flagged, inside the artboard so it scales with it. */
@@ -28,7 +28,14 @@ function ConflictRing({ elementId }: { elementId: string }) {
 
 export default function App() {
   const s = useSyncExternalStore(store.subscribe, store.getState);
-  const [current, setCurrent] = useState(() => slideIndexFromQuery(location.search));
+  const [current, setCurrent] = useState(() => {
+    // ?slide wins; otherwise a continued session reopens on the slide it left
+    if (new URLSearchParams(location.search).has('slide')) return slideIndexFromQuery(location.search);
+    if (store.restoredFromSave) {
+      try { return parseInt(localStorage.getItem('redline.view.v1') ?? '0', 10) || 0; } catch { return 0; }
+    }
+    return slideIndexFromQuery(location.search);
+  });
   const [mode, setMode] = useState<Mode>('edit');
   const [tools, setTools] = useState<string[]>([]);
   const [supported, setSupported] = useState<boolean | null>(null);
@@ -73,10 +80,17 @@ export default function App() {
     const ro = new ResizeObserver(measure);
     ro.observe(el);
     return () => ro.disconnect();
-  }, [insp]);
+    // `entered` matters: before entry there is no fitRef, the effect bails, and
+    // without it in the deps the observer is never attached — every viewport
+    // then lives on the 0.5 fallback scale forever.
+  }, [insp, entered]);
+
+  useEffect(() => {
+    try { localStorage.setItem('redline.view.v1', String(idx)); } catch { /* fine */ }
+  }, [idx]);
 
   const scale = fit * zoom;
-  const zoomBy = (d: number) => setZoom(z => Math.min(3, Math.max(0.4, +(z + d).toFixed(2))));
+  const zoomBy = (d: number) => setZoom(z => Math.min(3, Math.max(0.7, +(z + d).toFixed(2))));
 
   // ⌘/ctrl + wheel zooms, the way every canvas does
   useEffect(() => {
@@ -117,6 +131,35 @@ export default function App() {
     });
   }, [s.annotations]);
 
+  /* A tool wrote somewhere: light the region up for a beat, so a sweep the
+     person is watching reads as change landing rather than pixels flickering. */
+  const touched = useRef(0);
+  useEffect(() => {
+    const t = s.touch;
+    if (!t || t.seq === touched.current) return;
+    touched.current = t.seq;
+    if (t.slideId !== slide.id) return;
+    const MAP: Record<string, string> = {
+      eyebrow: 'kicker', caption: 'kicker', chartForm: 'chart', items: 'chart',
+      cards: 'card', steps: 'step', events: 'event', groups: 'ref',
+      panels: 'panel', figure: 'value.figure', tail: 'value.tail',
+    };
+    const root = MAP[t.root] ?? t.root;
+    const host = slideRef.current;
+    if (!host) return;
+    const els = [
+      ...host.querySelectorAll(`[data-el-id="${root}"]`),
+      ...host.querySelectorAll(`[data-el-id^="${root}."]`),
+    ].slice(0, 12) as HTMLElement[];
+    els.forEach(el => {
+      el.classList.remove('just-touched');
+      void el.offsetWidth;                      // restart the animation
+      el.classList.add('just-touched');
+    });
+    const id = setTimeout(() => els.forEach(el => el.classList.remove('just-touched')), 1300);
+    return () => clearTimeout(id);
+  }, [s.touch, slide.id]);
+
   // A fix reflows the slide; marks re-anchor off the model, so re-measure after
   // paint. `scale` is in here too: marks are laid out from the rects read during
   // render, which are still the PREVIOUS layout when the scale itself changed —
@@ -130,7 +173,9 @@ export default function App() {
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       const el = e.target as HTMLElement;
-      if (el?.tagName === 'TEXTAREA' || el?.tagName === 'INPUT') return;
+      // contentEditable is how every slide region edits — a headline containing
+      // "p" or an arrow-key caret move must never fire the app's shortcuts.
+      if (el?.tagName === 'TEXTAREA' || el?.tagName === 'INPUT' || el?.isContentEditable) return;
       const mod = e.metaKey || e.ctrlKey;
       if (mod && e.key.toLowerCase() === 'z') {
         e.preventDefault(); e.shiftKey ? store.redo() : store.undo();
@@ -164,6 +209,10 @@ export default function App() {
      labelled as such, but not faked. */
   const toggleReplay = async () => {
     if (replayCtl.current) { replayCtl.current.abort(); replayCtl.current = null; setSaying(null); return; }
+    // The pass runs on the sample deck. Whatever the person actually had — an
+    // imported deck, their own half-done review — comes back when it ends.
+    const before = store.snapshot();
+    const foreign = before.deck.id !== 'screen-to-cart';
     store.reset();
     const ac = new AbortController();
     replayCtl.current = ac;
@@ -178,6 +227,9 @@ export default function App() {
       }, ac.signal);
     } catch { /* stopped */ }
     if (replayCtl.current === ac) { replayCtl.current = null; setSaying(null); }
+    // On the sample deck the pass's results stay up for inspection; a foreign
+    // deck is restored immediately — it was never this demo's to change.
+    if (foreign) { store.restore(before); setCurrent(clampSlideIndex(current, before.deck.slides.length)); }
   };
 
   toggleReplayRef.current = toggleReplay;
@@ -206,6 +258,25 @@ export default function App() {
             </li>
           ))}
         </ol>
+        {openCount > 0 && (
+          <ol className="q-list">
+            {s.annotations.filter(a => a.status === 'open').map(a => {
+              const at = s.deck.slides.findIndex(x => x.id === a.slideId);
+              return (
+                <li key={a.id}>
+                  <button className={`q-item k-${a.kind}`}
+                    onClick={() => { if (at >= 0) setCurrent(at); store.select(a.id); }}>
+                    <i />
+                    <span className="q-b">{a.body}</span>
+                    <span className="q-s">{at + 1}</span>
+                    {a.replies.length > 0 && a.replies[a.replies.length - 1].author === 'agent'
+                      && <span className="q-w">↩</span>}
+                  </button>
+                </li>
+              );
+            })}
+          </ol>
+        )}
         <div className="queue">
           <span className="q-n">{openCount}</span>
           <span className="q-l">{openCount === 1 ? 'note open' : 'notes open'}</span>
@@ -250,15 +321,27 @@ export default function App() {
           </div>
           {supported && <div className="mcp-l">{tools.join(' · ')}</div>}
           {supported === false && (
-            <div className="mcp-l">
-              Enable chrome://flags/#enable-webmcp-testing, or open in the ChatGPT app browser.
-            </div>
+            <>
+              <div className="mcp-l">
+                Enable chrome://flags/#enable-webmcp-testing, or open in the ChatGPT
+                app browser. ▶ watch a pass runs the loop without an agent.
+              </div>
+              <div className="mcp-ghost">
+                {advertisedTools.base.map(n => <code key={n}>{n}</code>)}
+              </div>
+              <div className="mcp-ghost-h">while a note of that kind is open:</div>
+              <div className="mcp-ghost">
+                {advertisedTools.conditional.map(c => (
+                  <code key={c.name}>{c.name} <i>· {c.kind}</i></code>
+                ))}
+              </div>
+            </>
           )}
         </div>
       </aside>
 
-      <main className="stage">
-        <div className="fit" ref={fitRef}>
+      <main className={marks.length ? 'stage has-notes' : 'stage'}>
+        <div className={zoom > 1.001 ? 'fit panning' : 'fit'} ref={fitRef}>
           <div className="canvas" ref={canvasRef} style={{ width: W, height: H }} data-tick={tick}>
             <div className="slide" ref={slideRef} data-tone={slide.tone ?? 'light'}
               style={{ transform: `scale(${scale})` }}>
@@ -340,9 +423,9 @@ export default function App() {
         <div className="toolbar">
           <div className="modes">
             <button className={mode === 'edit' ? 'on' : ''} onClick={() => setMode('edit')}
-              title="Edit text (E)">✚ edit</button>
+              title="Edit text (E)">✎ edit</button>
             <button className={mode === 'draw' ? 'on' : ''} onClick={() => setMode('draw')}
-              title="Draw a note (P)">✎ note</button>
+              title="Draw a note (P)">◯ note</button>
             <button className={mode === 'move' ? 'on' : ''} onClick={() => setMode('move')}
               title="Move marks (V)">✥ move</button>
           </div>

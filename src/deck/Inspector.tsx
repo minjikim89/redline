@@ -115,7 +115,11 @@ function ListField({ slideId, node }: { slideId: string; node: Node }) {
               onClick={() => write(rows.filter((_, j) => j !== i))}>✕</button>
           </div>
           {walk(item.properties, r, `${node.path}.${i}`, 3).map(n => (
-            <Field key={n.path} slideId={slideId} node={n} />
+            n.schema?.type === 'array' && n.schema.items?.properties
+              // metrics inside a panel, rows inside a group: recurse, or an
+              // &lt;input&gt; renders "[object Object]" and editing it corrupts data
+              ? <ListField key={n.path} slideId={slideId} node={n} />
+              : <Field key={n.path} slideId={slideId} node={n} />
           ))}
         </div>
       ))}

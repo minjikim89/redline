@@ -65,11 +65,30 @@ export function buildScript(): Step[] {
           },
         }),
       });
+      // A number is a fact: the stale panel is corrected to the verified year,
+      // so the slide never cites FY2025 while displaying FY2024. The HEADLINE
+      // is an argument, and stays exactly as flagged — that call is human.
+      steps.push({
+        say: 'correcting the stale panel', slideId: a.slideId,
+        run: () => callable.edit_items({
+          slideId: a.slideId, list: 'panels', op: 'replace', index: 1,
+          item: {
+            heading: 'Commerce · Weverse Company (FY2025)',
+            metrics: [
+              { value: '₩299.7B', label: 'annual revenue' },
+              { value: '+₩2.0B', label: 'operating profit', emphasis: true },
+              { value: 'reversed', label: 'FY2024 loss of ₩13.8B' },
+            ],
+            note: 'The 2024 operating loss this panel rested on has reversed: the platform '
+              + 'now runs a thin operating profit. Figures from the FY2025 annual report.',
+          },
+        }),
+      });
       steps.push({
         say: 'noting what it could not verify', slideId: a.slideId,
         run: () => callable.reply_to_annotation({
           annotationId: a.id,
-          body: 'Updated to FY2025 and flagged the headline: the loss it rests on is a 2024 number. Rewriting an argument is your call, not mine.',
+          body: 'Panel updated to FY2025 with the filing as source, and the headline is flagged: the loss it rests on has reversed. Rewriting an argument is your call, not mine.',
         }),
       });
     }
@@ -100,6 +119,13 @@ export function buildScript(): Step[] {
       run: () => callable.resolve_annotation({ annotationId: a.id }),
     });
   }
+
+  // the pass says what it did before it goes quiet
+  const touched = new Set<string>(['s04', 's05', 's07', 's08', 's10', ...open.map(a => a.slideId)]);
+  steps.push({
+    say: `pass complete — ${open.length} notes closed · ${touched.size} slides touched · every call is in the trail`,
+    run: async () => null,
+  });
 
   return steps;
 }

@@ -32,7 +32,6 @@ type Reg = {
 /** Chrome documents a 1.5K character budget per tool output. */
 const OUTPUT_BUDGET = 1500;
 
-const READ = { readOnlyHint: true };
 const READ_UNTRUSTED = { readOnlyHint: true, untrustedContentHint: true };
 
 const ok = (o: object) => ({ ok: true, ...o });
@@ -102,7 +101,8 @@ const baseTools: Reg[] = [
     title: 'List slides',
     description: 'The deck outline: every slide id, its type, and its headline. Start here.',
     inputSchema: { type: 'object', properties: {}, additionalProperties: false },
-    annotations: READ,
+    // headlines are authored human text
+    annotations: READ_UNTRUSTED,
     execute: async () => {
       const { items, omitted } = fit(store.getState().deck.slides, s => ({
         id: s.id, type: s.type,
@@ -196,6 +196,7 @@ const baseTools: Reg[] = [
         return fail('NOT_APPLICABLE', `A ${s.type} slide has no "${field}".`,
           { fieldsOnThisSlide: Object.keys(registry[s.type].propSchema) });
       store.updateSlideProps(slideId, { [field]: text });
+      store.markTouch(slideId, field);
       return ok({ slideId, field, text });
     },
   },
@@ -239,6 +240,7 @@ const baseTools: Reg[] = [
         return fail('INVALID_INPUT', `"${series}" is not a series on this slide.`,
           { seriesOnThisSlide: available });
       store.setByPath(slideId, series, rows);
+      store.markTouch(slideId, series.split('.')[0]);
       return ok({ slideId, series, rows: rows.length });
     },
   },
@@ -315,6 +317,7 @@ const baseTools: Reg[] = [
       }
 
       store.setByPath(slideId, list, rows);
+      store.markTouch(slideId, list);
       return ok({ slideId, list, op, count: rows.length });
     },
   },
@@ -396,6 +399,7 @@ const conditionalTools: Record<string, Reg> = {
           { allowedForms: allowed });
       const before = s.props.chartForm;
       store.updateSlideProps(slideId, { chartForm });
+      store.markTouch(slideId, 'chart');
       return ok({ slideId, before, after: chartForm, items: s.props.items?.length, rationale });
     },
   },
@@ -442,6 +446,7 @@ const conditionalTools: Record<string, Reg> = {
       if (value !== undefined) patch.value = value;
       if (unit !== undefined) patch.unit = unit;
       store.updateSlideProps(slideId, patch);
+      store.markTouch(slideId, 'source');
 
       let raised = false;
       if (contradicts) {
@@ -496,6 +501,7 @@ const conditionalTools: Record<string, Reg> = {
           }
           const next = template.replace('{value}', String(s.props[field] ?? ''));
           store.updateSlideProps(id, { [field]: next });
+          store.markTouch(id, field);
           applied.push(id);
           await sleep(320, opts?.signal);       // visible, and interruptible
         }
@@ -531,6 +537,12 @@ function traced(t: Reg): Exec {
 export const callable: Record<string, Exec> = Object.fromEntries(
   [...baseTools, ...Object.values(conditionalTools)].map(t => [t.name, traced(t)]),
 );
+
+/** The surface as it would register — for showing what exists even with no agent attached. */
+export const advertisedTools = {
+  base: baseTools.map(t => t.name),
+  conditional: Object.entries(conditionalTools).map(([kind, t]) => ({ kind, name: t.name })),
+};
 
 /* ------------------------------------------------------------------ *
  * Registration

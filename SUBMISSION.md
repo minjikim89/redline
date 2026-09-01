@@ -86,10 +86,10 @@ There is deliberately no `update(slideId, props: object)` tool. An over-general
 writer wins every routing decision and collapses the surface back into string
 editing. Every writer takes a named field, an enum, or a typed array.
 
-**Ten tools. Three of them only exist while you need them.**
+**Eleven tools. Three of them only exist while you need them.**
 
 Always registered: `list_slides`, `read_slide`, `list_open_annotations` (all
-`readOnlyHint`), `set_slide_text`, `set_series`, `reply_to_annotation`,
+`readOnlyHint`), `set_slide_text`, `set_series`, `edit_items`, `reply_to_annotation`,
 `resolve_annotation`.
 
 Registered only while a note of that kind is open, and unregistered via
@@ -110,6 +110,7 @@ Spec surface used, and how it compares to the official reference implementations
 | dynamic registration / unregistration | none of them | 3 tools, driven by the queue |
 | `execute` receiving an `AbortSignal` | none of them | `unify_across_slides`, stoppable mid-sweep |
 | `untrustedContentHint` | Vercel only | on everything returning human text or fetched data |
+| a person-owned edit scope | none | writes outside the noted slides come back `OUT_OF_SCOPE`, and `list_slides` states the scope up front |
 | structured errors carrying recovery | Vercel only | every failure, with the valid ids or values |
 | output budget | Vercel only | `list_slides` held under the documented 1.5K |
 
@@ -127,12 +128,28 @@ Errors never come back as a bare string:
 ```
 
 **Import and export.** The entry screen reads an exported HTML deck into the model
-and the toolbar writes one back out. The round trip is covered by tests, because
-it is the only real proof of the claim the architecture rests on: the model is the
-contract, so any tool that emits slides can hand work over and the agent picks it
-up with the same tools.
+and the toolbar writes one back out — with the typed model embedded in the file as
+a JSON island, so the round trip is lossless: every slide type, figure and source
+is restored exactly. Foreign HTML goes through a conservative heuristic reader, and
+a file with nothing readable is refused with a reason. The round trip is covered by
+tests, because it is the only real proof of the claim the architecture rests on:
+the model is the contract, so any tool that emits slides can hand work over and the
+agent picks it up with the same tools.
 
-**Tests.** `npm test` runs 78: the importer and its edge cases, the store's
+**The person stays in charge of where the agent may write.** A scope switch on the
+page (default: only slides carrying an open note) makes every point-write tool
+refuse an unmarked slide with a recoverable `OUT_OF_SCOPE` error naming the slides
+that are in scope. The one exemption is `unify_across_slides`, deliberately: it is
+the watched batch — it lands slide by slide in front of the person and can be
+stopped partway. This came out of a real session in which an agent, asked to fix
+two noted slides, also "improved" several nobody had marked.
+
+**The session persists.** Deck, queue and scope survive a reload in localStorage;
+the entry screen offers to continue. Before this, an agent's own chart change
+vanished on refresh and it reported "the deck session had reset" — the loop cannot
+close over state that evaporates.
+
+**Tests.** `npm test` runs 137: the importer and its edge cases, the store's
 history and queue, the tool layer (including cancellation, error shape, and a
 regression guard that keeps the chart-form enum from drifting from what the
 renderer can actually draw), and the export→import round trip. Two of those tests

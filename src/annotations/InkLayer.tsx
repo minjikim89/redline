@@ -23,13 +23,24 @@ function labelBounds(canvas: HTMLElement) {
   const c = canvas.getBoundingClientRect();
   const stage = canvas.closest('.stage') as HTMLElement | null;
   const s = stage?.getBoundingClientRect();
-  const pad = stage ? parseFloat(getComputedStyle(stage).paddingLeft) || 0 : 0;
-  const left = s ? s.left + pad - c.left : -NOTE_W - GAP;
-  const right = s ? s.right - pad - c.left - NOTE_W : c.width + GAP;
+  // The stage PADDING is the gutter — it exists precisely so notes can live
+  // beside the artboard. Clamping to the content box instead forced every
+  // note's right edge back to the canvas edge, i.e. fully onto the slide.
+  const left = s ? s.left + 8 - c.left : -NOTE_W - GAP;
+  const right = s ? s.right - 8 - c.left - NOTE_W : c.width + GAP;
   return { min: left, max: Math.max(left, right), width: c.width };
 }
 
 export type Mode = 'edit' | 'draw' | 'move';
+
+/** Centre of a slide element, normalized to the slide box. */
+function anchorCentre(slide: HTMLElement, elementId?: string): Pt | undefined {
+  if (!elementId) return undefined;
+  const el = slide.querySelector(`[data-el-id="${elementId}"]`) as HTMLElement | null;
+  if (!el) return undefined;
+  const s = slide.getBoundingClientRect(), r = el.getBoundingClientRect();
+  return { x: (r.left - s.left + r.width / 2) / s.width, y: (r.top - s.top + r.height / 2) / s.height };
+}
 
 interface Drag { id: string; part: 'label' | 'stroke'; from: Pt; dx: number; dy: number }
 
@@ -142,9 +153,24 @@ export function InkLayer({ slideId, mode, canvasRef, slideRef, annotations, sele
     const cRect = canvasRef.current!.getBoundingClientRect();
     const sRect = slideRef.current!.getBoundingClientRect();
     if (Math.abs(drag.dx) > 1 || Math.abs(drag.dy) > 1) {
-      store.moveAnnotation(drag.id, drag.part === 'label'
-        ? { label: { x: drag.dx / cRect.width, y: drag.dy / cRect.height } }
-        : { stroke: { x: drag.dx / sRect.width, y: drag.dy / sRect.height } });
+      if (drag.part === 'label') {
+        store.moveAnnotation(drag.id, { label: { x: drag.dx / cRect.width, y: drag.dy / cRect.height } });
+      } else {
+        // Dragging the circle is re-aiming it: resolve what sits under the new
+        // position and anchor there, in the same history entry as the move —
+        // otherwise the anchor-follow would snap the stroke straight back.
+        const a = store.getState().annotations.find(x => x.id === drag.id);
+        const delta = { x: drag.dx / sRect.width, y: drag.dy / sRect.height };
+        let aim;
+        if (a && slideRef.current) {
+          const pts = a.stroke.map(p => ({
+            x: (p.x + delta.x) * sRect.width, y: (p.y + delta.y) * sRect.height,
+          }));
+          const targets = resolveTargets(pts, slideRef.current);
+          aim = { targets, anchorAt: anchorCentre(slideRef.current, targets[0]?.elementId) };
+        }
+        store.moveAnnotation(drag.id, { stroke: delta }, aim);
+      }
     }
     setDrag(null);
     onDone();
@@ -185,6 +211,7 @@ export function InkLayer({ slideId, mode, canvasRef, slideRef, annotations, sele
     const off = { x: sRect.left - cRect.left, y: sRect.top - cRect.top };
     store.addAnnotation({
       slideId, kind, body: body.trim(), targets: draft.targets,
+      anchorAt: anchorCentre(slide, draft.targets[0]?.elementId),
       stroke: draft.stroke.map(p => ({
         x: (p.x - off.x) / sRect.width, y: (p.y - off.y) / sRect.height,
       })),
@@ -205,9 +232,25 @@ export function InkLayer({ slideId, mode, canvasRef, slideRef, annotations, sele
     const d = drag?.id === a.id ? drag : null;
     const sd = d?.part === 'stroke' ? d : null;
     const ld = d?.part === 'label' ? d : null;
+    /* The anchor is the model target, not the pixels. When an edit reflows the
+       slide — the agent re-forms a chart, a fix reflows a column — the stroke
+       follows the CENTRE of the element it resolved to, so the circle stays
+       around the thing it was about. Hand-drawn shape and size are kept. */
+    let ax = 0, ay = 0;
+    const centre = slideRef.current
+      ? anchorCentre(slideRef.current, a.targets[0]?.elementId) : undefined;
+    if (centre && off) {
+      if (a.anchorAt) {
+        // exact: shift by how far the anchor has moved since the mark was drawn.
+        // A mark without a recorded origin (the seeds) stays where the hand
+        // left it — guessing a centre yanked circles onto the wrong element.
+        ax = (centre.x - a.anchorAt.x) * off.w;
+        ay = (centre.y - a.anchorAt.y) * off.h;
+      }
+    }
     const pts = a.stroke.map(p => ({
-      x: p.x * off!.w + off!.x + (sd?.dx ?? 0),
-      y: p.y * off!.h + off!.y + (sd?.dy ?? 0),
+      x: p.x * off!.w + off!.x + ax + (sd?.dx ?? 0),
+      y: p.y * off!.h + off!.y + ay + (sd?.dy ?? 0),
     }));
     // clamp so a note can never end up beneath the rail or off the stage
     const rawX = a.labelAt.x * cRect!.width + (ld?.dx ?? 0);
@@ -309,6 +352,9 @@ export function InkLayer({ slideId, mode, canvasRef, slideRef, annotations, sele
           <div className="se-kinds">
             {KINDS.map(k => (
               <button key={k.k} className={kind === k.k ? `se-k on k-${k.k}` : 'se-k'}
+                /* preventDefault keeps focus in the textarea, so picking a kind
+                   never breaks the Enter-to-pin flow mid-thought */
+                onPointerDown={e => e.preventDefault()}
                 onClick={() => setKind(k.k)}>{k.label}</button>
             ))}
           </div>
@@ -324,7 +370,9 @@ export function InkLayer({ slideId, mode, canvasRef, slideRef, annotations, sele
           </div>
           <div className="se-foot">
             <button className="se-redo" onClick={() => setDraft(null)}>redraw</button>
-            <span className="se-key"><kbd>esc</kbd> cancel · <kbd>↵</kbd> pin</span>
+            <span className="se-key"><kbd>esc</kbd> cancel</span>
+            <button className="se-pin" disabled={!body.trim()}
+              onPointerDown={e => e.preventDefault()} onClick={commit}>↵ pin</button>
           </div>
         </div>
       )}

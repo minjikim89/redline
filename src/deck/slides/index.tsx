@@ -51,8 +51,10 @@ export function CardsSlide({ kicker, accent, title, cards, footnote, footMark, t
           <A key={i} id={`card.${i}`} label={`card: ${c.head}`}
             className={`card${tone === 'dark' ? ' on-dark' : ''}`}>
             <span className="card-ix" style={{ color: c.color ?? PINK }}>{c.index}</span>
-            <A id={`card.${i}.head`} label={`card head: ${c.head}`}
-              path={`cards.${i}.head`} className="card-head">{c.head}</A>
+            {c.head && (
+              <A id={`card.${i}.head`} label={`card head: ${c.head}`}
+                path={`cards.${i}.head`} className="card-head">{c.head}</A>
+            )}
             {c.body !== c.head && (
               <A id={`card.${i}.body`} label={`card body: ${c.head}`}
                 path={`cards.${i}.body`} className="card-body">{c.body}</A>

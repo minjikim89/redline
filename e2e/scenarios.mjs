@@ -220,18 +220,18 @@ if (want('B')) {
 
   await t.check('E / P / V switch mode', async () => {
     await nav('?deck=1');
-    eq(await modeOn(), '✚ edit', 'did not open in edit');
-    await bare('p'); eq(await modeOn(), '✎ note', 'P did not select note');
+    eq(await modeOn(), '✎ edit', 'did not open in edit');
+    await bare('p'); eq(await modeOn(), '◯ note', 'P did not select note');
     await bare('v'); eq(await modeOn(), '✥ move', 'V did not select move');
-    await bare('e'); eq(await modeOn(), '✚ edit', 'E did not select edit');
-    await bare('P'); eq(await modeOn(), '✎ note', 'shift-P did not select note');
+    await bare('e'); eq(await modeOn(), '✎ edit', 'E did not select edit');
+    await bare('P'); eq(await modeOn(), '◯ note', 'shift-P did not select note');
     return 'E/P/V all bind';
   });
 
   await t.check('the toolbar buttons switch mode', async () => {
     await d.clickText('✥ move'); eq(await modeOn(), '✥ move', 'move button');
-    await d.clickText('✎ note'); eq(await modeOn(), '✎ note', 'note button');
-    await d.clickText('✚ edit'); eq(await modeOn(), '✚ edit', 'edit button');
+    await d.clickText('◯ note'); eq(await modeOn(), '◯ note', 'note button');
+    await d.clickText('✎ edit'); eq(await modeOn(), '✎ edit', 'edit button');
     return 'ok';
   });
 
@@ -1206,7 +1206,109 @@ if (want('J')) {
 
 /* =========================== report =========================== */
 async function finish() {
-  console.log('\nconsole output collected:');
+  /* =========== K · the marks are the work order, and nothing evaporates =========== */
+if (want('K')) {
+  console.log('\nK · scope, structure, persistence');
+
+  await t.check('a point write outside the noted scope is refused with a map', async () => {
+    await nav('?deck=1');
+    const r = await d.$(`window.__t.callable.set_slide_text({slideId:'s02',field:'body',text:'X'})
+      .then(r=>JSON.parse(JSON.stringify(r)))`);
+    eq(r.ok, false, 'an unmarked slide accepted a write');
+    eq(r.error.code, 'OUT_OF_SCOPE', `wrong code: ${r.error.code}`);
+    assert(r.error.notedSlideIds?.includes('s04'), 'the refusal did not name the noted slides');
+    return 'refused, with notedSlideIds';
+  });
+
+  await t.check('the scope switch on the page widens it', async () => {
+    await d.clickText('whole deck', '.sc-seg button');
+    const r = await d.$(`window.__t.callable.set_slide_text({slideId:'s02',field:'body',text:'Widened.'})
+      .then(r=>JSON.parse(JSON.stringify(r)))`);
+    eq(r.ok, true, `still refused: ${JSON.stringify(r)}`);
+    await d.clickText('noted only', '.sc-seg button');
+    return 'widened, then narrowed back';
+  });
+
+  await t.check('list_slides states the scope up front', async () => {
+    const r = await d.$(`window.__t.callable.list_slides({}).then(r=>JSON.parse(JSON.stringify(r)))`);
+    assert(Array.isArray(r.editableSlides), 'no editableSlides in the outline');
+    assert(r.editableSlides.includes('s06'), 's06 carries a note but is not listed editable');
+    return `editable: ${r.editableSlides.join(' ')}`;
+  });
+
+  await t.check('edit_items removes one card and leaves the rest alone', async () => {
+    const before = (await props('s03')).cards.map(c => c.head);
+    const r = await d.$(`window.__t.callable.edit_items({slideId:'s03',list:'cards',op:'remove',index:1})
+      .then(r=>JSON.parse(JSON.stringify(r)))`);
+    // s03 carries no note: out of scope while 'noted only'. Widen, retry, narrow.
+    eq(r.ok, false, 'edit_items ignored the scope');
+    await d.clickText('whole deck', '.sc-seg button');
+    const r2 = await d.$(`window.__t.callable.edit_items({slideId:'s03',list:'cards',op:'remove',index:1})
+      .then(r=>JSON.parse(JSON.stringify(r)))`);
+    eq(r2.ok, true, `remove failed: ${JSON.stringify(r2)}`);
+    const after = (await props('s03')).cards.map(c => c.head);
+    eq(after.length, before.length - 1, 'count did not drop by one');
+    eq(after[0], before[0], 'the wrong card moved');
+    await goSlide(3);
+    eq(await d.$(`document.querySelectorAll('.slide .card').length`), after.length,
+      'the artboard does not show the removal');
+    await d.clickText('noted only', '.sc-seg button');
+    return `${before.length} → ${after.length} cards`;
+  });
+
+  await t.check('a note can be edited after it is pinned', async () => {
+    await nav('?deck=1&slide=6');
+    await d.$(`document.querySelector('.scribble').dispatchEvent(new PointerEvent('pointerdown',{bubbles:true}))`);
+    await d.sleep(300);
+    assert(await d.clickText('edit', '.mark-acts button'), 'no edit action on a selected note');
+    await d.$(`(()=>{const t=document.querySelector('.ne textarea');t.focus();
+      // React's controlled input needs the NATIVE setter or onChange never sees it
+      Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype,'value')
+        .set.call(t,'Reworded after pinning.');
+      t.dispatchEvent(new Event('input',{bubbles:true}));return 1})()`);
+    await d.clickText('Fix', '.se-k');
+    await d.clickText('save', '.mark-acts button');
+    await d.sleep(250);
+    const a = (await state()).annotations.find(x => x.slideId === 's06');
+    eq(a.body, 'Reworded after pinning.', 'the body did not change');
+    eq(a.kind, 'fix', 'the kind did not change');
+    return 'body and kind rewritten in place';
+  });
+
+  await t.check('the session survives a reload, and ?fresh ignores it', async () => {
+    await nav('?deck=1');
+    await d.$(`window.__t.callable.resolve_annotation({annotationId:
+      ${JSON.stringify('seed_pie')}})`);
+    await d.sleep(500);          // let the debounced persist land
+    await nav('?deck=1&keep');   // no fresh: the saved session should come back
+    const a = (await state()).annotations.find(x => x.id === 'seed_pie');
+    eq(a?.status, 'resolved', 'the resolve did not survive the reload');
+    await nav('?deck=1');        // fresh again: seeds restored
+    const b = (await state()).annotations.find(x => x.id === 'seed_pie');
+    eq(b?.status, 'open', '?fresh did not ignore the saved session');
+    return 'persisted, and fresh starts clean';
+  });
+
+  await t.check('the export carries the model and the import restores it exactly', async () => {
+    await nav('?deck=1');
+    const r = await d.$(`(async()=>{
+      const ex=await import('/src/deck/exportHtml.ts');
+      const im=await import('/src/deck/importHtml.ts');
+      const deck=window.__s.getState().deck;
+      const rep=im.importHtml(ex.exportHtml(deck),'rt.html');
+      return {lossless:rep.lossless===true,
+        types:rep.deck.slides.map(s=>s.type).join(','),
+        want:deck.slides.map(s=>s.type).join(','),
+        figure:rep.deck.slides[1].props.figure};
+    })()`);
+    eq(r.lossless, true, 'the round trip fell back to heuristics');
+    eq(r.types, r.want, 'slide types changed in the round trip');
+    eq(r.figure, '$202M', 'the hero figure did not survive');
+    return 'lossless, all twelve types intact';
+  });
+}
+
+console.log('\nconsole output collected:');
   if (!allErrs.length) console.log('  (none)');
   allErrs.forEach(e => console.log(`  · ${e.label}: ${e.errs.join(' | ')}`));
   const ok = t.report();

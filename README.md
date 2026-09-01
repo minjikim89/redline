@@ -51,21 +51,32 @@ parties are looking at the same surface.
 
 ## Implementation
 
-### Bringing a deck in
+### Bringing a deck in — and back
 
 Redline does not generate slides. The entry screen takes an exported HTML deck and
-reads its sections into the typed model — `src/deck/importHtml.ts`. The mapping is
-conservative on purpose: it claims a slide type only when the structure is
-unambiguous (a cover, a single dominant figure, a references page) and otherwise
-leaves the text as prose, because a confident wrong guess is worse than a plain
-slide. The import report says how many sections it read and what it made of them.
+reads it into the typed model — `src/deck/importHtml.ts`.
 
-That is the architectural claim made concrete: **the model is the contract.** Any
-tool that emits slides can hand work over, and the agent picks it up with the same
-tools, because the tools are typed against the model rather than against a format.
+A Redline export carries the model itself in a JSON island, so the round trip is
+**lossless**: every slide type, figure and source is restored exactly, and the
+report says so ("restored exactly, nothing re-guessed from markup"). That is the
+architectural claim made concrete: **the model is the contract.** Any tool that
+emits slides can hand work over, and the agent picks it up with the same tools.
+
+Foreign HTML goes through a heuristic reader that is conservative on purpose: it
+claims a slide type only when the structure is unambiguous (a cover, a single
+dominant figure, a references page) and otherwise leaves the text as prose, because
+a confident wrong guess is worse than a plain slide. A file with nothing readable in
+it is refused with a reason — not opened as one empty slide.
 
 `?import=<url>` runs the same parser on a hosted file. A sample export ships at
 `/exported-deck-sample.html`.
+
+## The session survives you
+
+The deck, the queue and the scope persist in `localStorage`. Close the tab
+mid-review and the entry screen offers to continue where you left off; an agent's
+edit no longer evaporates on refresh. `?fresh=1` ignores the saved session,
+`?blank=1` opens an unmarked deck.
 
 ## The deck is a typed model. There is no HTML escape hatch.
 
@@ -83,17 +94,18 @@ writer wins every routing decision and collapses the rest of the surface back in
 string editing. Chrome's guidance is explicit: *"Be careful not to create overlapping
 tools."* Every writer here takes a named field or a typed array.
 
-### Ten tools, three of which only exist while you need them
+### Eleven tools, three of which only exist while you need them
 
 Always registered:
 
 | Tool | |
 |---|---|
-| `list_slides` | `readOnlyHint` — deck outline, kept inside the 1.5K output budget |
+| `list_slides` | `readOnlyHint` — deck outline plus the current edit scope, inside the 1.5K output budget |
 | `read_slide` | `readOnlyHint` + `untrustedContentHint` — live props and annotatable regions |
-| `list_open_annotations` | `readOnlyHint` + `untrustedContentHint` — the queue, with anchors |
+| `list_open_annotations` | `readOnlyHint` + `untrustedContentHint` — the queue, with anchors and threads |
 | `set_slide_text` | one named field, `field` is an enum |
-| `set_chart_data` | typed `{label, value}[]` |
+| `set_series` | typed `{label, value}[]`, addressed by the series names `read_slide` advertises |
+| `edit_items` | structural editing — append, remove, replace or move one item in a slide's list, validated against that list's schema |
 | `reply_to_annotation` | agent writes back on the pin |
 | `resolve_annotation` | close a note once the change is really in |
 
@@ -106,6 +118,27 @@ toolset in real time*:
 | `set_chart_form` | a `visualize` note is open | enum of forms, validated against the slide's own registry entry |
 | `attach_research` | a `research` note is open | `untrustedContentHint`; requires `source` and `asOf`; can raise a `contradicts` flag |
 | `unify_across_slides` | a `fix` note is open | long-running and **cancellable mid-sweep** |
+
+### The marks are the work order
+
+A review session produced the failure this guards against: asked to fix two noted
+slides, an agent also "improved" several nobody had marked. Now a scope switch on
+the page (default: **noted slides only**) makes every point-write tool refuse a
+slide that carries no open note:
+
+```js
+{ ok: false,
+  error: { code: "OUT_OF_SCOPE",
+           message: 'The person has scoped edits to the slides they marked…',
+           notedSlideIds: ["s04", "s06", "s08"] },
+  retrySafe: true }
+```
+
+`list_slides` states the scope up front (`editableSlides`), so a well-behaved agent
+never even hits the refusal. `unify_across_slides` stays exempt — it is the watched
+batch: it lands slide by slide in front of the person, and it can be stopped
+mid-sweep. The person can widen the switch to the whole deck at any time; the point
+is that it is the person's switch.
 
 ### When the answer breaks the argument
 
@@ -186,21 +219,32 @@ by calling the same tool implementations in the order an agent calls them. It is
 labelled as scripted in the UI because it is: the tool calls are real, the sentences
 the agent "says" are not. The demo video shows the real thing.
 
-## Bringing a deck in
+## Bringing a deck in — and back
 
 Redline does not generate slides. The entry screen takes an exported HTML deck and
-reads its sections into the typed model — `src/deck/importHtml.ts`. The mapping is
-conservative on purpose: it claims a slide type only when the structure is
-unambiguous (a cover, a single dominant figure, a references page) and otherwise
-leaves the text as prose, because a confident wrong guess is worse than a plain
-slide. The import report says how many sections it read and what it made of them.
+reads it into the typed model — `src/deck/importHtml.ts`.
 
-That is the architectural claim made concrete: **the model is the contract.** Any
-tool that emits slides can hand work over, and the agent picks it up with the same
-tools, because the tools are typed against the model rather than against a format.
+A Redline export carries the model itself in a JSON island, so the round trip is
+**lossless**: every slide type, figure and source is restored exactly, and the
+report says so ("restored exactly, nothing re-guessed from markup"). That is the
+architectural claim made concrete: **the model is the contract.** Any tool that
+emits slides can hand work over, and the agent picks it up with the same tools.
+
+Foreign HTML goes through a heuristic reader that is conservative on purpose: it
+claims a slide type only when the structure is unambiguous (a cover, a single
+dominant figure, a references page) and otherwise leaves the text as prose, because
+a confident wrong guess is worse than a plain slide. A file with nothing readable in
+it is refused with a reason — not opened as one empty slide.
 
 `?import=<url>` runs the same parser on a hosted file. A sample export ships at
 `/exported-deck-sample.html`.
+
+## The session survives you
+
+The deck, the queue and the scope persist in `localStorage`. Close the tab
+mid-review and the entry screen offers to continue where you left off; an agent's
+edit no longer evaporates on refresh. `?fresh=1` ignores the saved session,
+`?blank=1` opens an unmarked deck.
 
 ## The deck
 

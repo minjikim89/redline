@@ -124,7 +124,11 @@ export function Start({ onEnter }: { onEnter: () => void }) {
                 )}
                 <ul className="st-r-types">
                   {Object.entries(report.recognised).map(([t, n]) => (
-                    <li key={t}><b>{n}</b> {t}</li>
+                    <li key={t}><b>{n}</b> {({
+                      cover: 'cover', hero: 'headline figure', cards: 'card row',
+                      barsPair: 'paired bars', flow: 'flow', figures: 'figures',
+                      panels: 'metric panels', timeline: 'timeline', refs: 'references',
+                    } as Record<string, string>)[t] ?? t}</li>
                   ))}
                 </ul>
                 {report.warnings.length > 0 && (

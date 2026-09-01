@@ -71,7 +71,12 @@ const allErrs = [];
 
 /** Navigate and expose the live store + tool implementations to the page. */
 async function nav(q = '?deck=1', settle = 2200) {
-  await d.go(BASE + q, settle);
+  // Sessions persist across reloads now; the checks assume a seeded start, so
+  // every nav ignores the saved session unless a scenario asks for it.
+  const fq = q.includes('fresh') || q.includes('keep')
+    ? q.replace('&keep', '')
+    : q ? `${q}&fresh=1` : '?fresh=1';
+  await d.go(BASE + fq, settle);
   await d.$(`(async()=>{window.__s=await import('/src/annotations/store.ts');
               window.__t=await import('/src/webmcp/tools.ts');return 1})()`);
 }
@@ -177,11 +182,14 @@ if (want('A')) {
     return e;
   });
 
-  await t.check('?import= of a non-deck page warns rather than pretending', async () => {
+  await t.check('?import= of a non-deck page refuses instead of pretending', async () => {
     await nav('?import=' + encodeURIComponent(BASE + 'no-such-deck.html'), 2600);
-    const w = await d.text('.st-r-warn');
-    assert(w, 'a page with no sections produced no warning');
-    return w.replace(/\n/g, ' / ');
+    // The SPA fallback serves the app page itself — nothing readable. The
+    // report must say so and must NOT offer to open a junk deck.
+    const w = await d.text('.st-r-fatal');
+    assert(w, 'an unreadable page produced no refusal');
+    eq(await d.count('.st-go'), 0, 'still offered to open it');
+    return w.slice(0, 60);
   });
 
   for (const [q, expect] of [['?slide=3', 2], ['?slide=0', 0], ['?slide=99', 11],
@@ -579,15 +587,18 @@ if (want('D')) {
     return 'badge tracks the last speaker';
   });
 
-  await t.check('“clear” empties the open queue and is undoable', async () => {
+  await t.check('“clear” asks first, then empties the queue, and is undoable', async () => {
     await nav('?deck=1');
     eq((await state()).annotations.length, 3, 'seeded queue missing');
     await d.clickText('clear', '.q-x');
+    // one press only arms it — deleting a whole queue must not be one slip away
+    eq((await state()).annotations.length, 3, 'a single press already deleted the queue');
+    await d.clickText('delete', '.q-x');
     eq((await state()).annotations.length, 0, 'clear left notes behind');
     eq(await d.text('.q-n'), '0', 'the counter did not follow');
     await mod('z');
     eq((await state()).annotations.length, 3, 'clear was not undoable');
-    return 'cleared and restored';
+    return 'armed, cleared, restored';
   });
 }
 

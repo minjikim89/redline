@@ -12,18 +12,67 @@ type State = {
   deck: Deck; annotations: Annotation[]; selected: string | null;
   /** A visible trail of what the agent actually invoked. */
   calls: CallRecord[];
+  /**
+   * Where the agent may write. 'noted' = only slides carrying an open note —
+   * the person's marks are the work order, and everything else is off the
+   * table. 'all' opens the whole deck. The person owns this switch.
+   */
+  scope: 'noted' | 'all';
 };
 
 // `?blank=1` opens an unmarked deck; the default shows the review already in progress.
-const blank = typeof location !== 'undefined'
-  && new URLSearchParams(location.search).has('blank');
+// `?fresh=1` ignores any saved session without deleting it — the e2e harness and
+// a person who wants the seeded demo back both need a load that starts clean.
+const q = typeof location !== 'undefined'
+  ? new URLSearchParams(location.search) : new URLSearchParams();
+const blank = q.has('blank');
+const fresh = q.has('fresh');
 
-let state: State = {
-  deck: sampleDeck,
-  annotations: blank ? [] : seedAnnotations.map(a => ({ ...a })),
-  selected: null,
-  calls: [],
-};
+/* ---------- persistence ---------- *
+ * The session survives a reload. Without this, every agent edit and every note
+ * evaporated the moment the tab refreshed — an agent literally watched its own
+ * chart change disappear and reported "the deck session had reset".
+ */
+const KEY = 'redline.session.v1';
+
+function loadSaved(): { deck: Deck; annotations: Annotation[]; scope?: 'noted' | 'all' } | null {
+  if (blank || fresh || typeof localStorage === 'undefined') return null;
+  try {
+    const raw = localStorage.getItem(KEY);
+    if (!raw) return null;
+    const v = JSON.parse(raw);
+    if (v?.v !== 1 || !Array.isArray(v.deck?.slides) || !v.deck.slides.length
+      || !Array.isArray(v.annotations)) return null;
+    return { deck: v.deck, annotations: v.annotations, scope: v.scope };
+  } catch { return null; }
+}
+
+const saved = loadSaved();
+/** Whether this session picked up where a previous one left off. */
+export const restoredFromSave = saved !== null;
+
+let saveTimer: ReturnType<typeof setTimeout> | undefined;
+function persist() {
+  if (typeof localStorage === 'undefined') return;
+  clearTimeout(saveTimer);
+  saveTimer = setTimeout(() => {
+    try {
+      localStorage.setItem(KEY, JSON.stringify({
+        v: 1, deck: state.deck, annotations: state.annotations, scope: state.scope,
+      }));
+    } catch { /* quota or private mode — the session just won't survive reload */ }
+  }, 250);
+}
+
+let state: State = saved
+  ? { deck: saved.deck, annotations: saved.annotations, selected: null, calls: [], scope: saved.scope ?? 'noted' }
+  : {
+      deck: sampleDeck,
+      annotations: blank ? [] : seedAnnotations.map(a => ({ ...a })),
+      selected: null,
+      calls: [],
+      scope: 'noted',
+    };
 const listeners = new Set<() => void>();
 
 const emit = () => listeners.forEach(l => l());
@@ -43,6 +92,7 @@ const set = (next: Partial<State>) => {
   if (past.length > LIMIT) past.shift();
   future.length = 0;
   state = { ...state, ...next };
+  persist();
   emit();
 };
 
@@ -51,6 +101,7 @@ export function undo() {
   if (!prev) return;
   future.push(state);
   state = prev;
+  persist();
   emit();
 }
 
@@ -59,6 +110,7 @@ export function redo() {
   if (!next) return;
   past.push(state);
   state = next;
+  persist();
   emit();
 }
 
@@ -96,7 +148,8 @@ export function getSlide(slideId: string) {
 /** Swap the whole deck, e.g. after an import. Clears notes, which belonged to the old one. */
 export function loadDeck(deck: Deck) {
   past.length = 0; future.length = 0;
-  state = { deck, annotations: [], selected: null, calls: [] };
+  state = { deck, annotations: [], selected: null, calls: [], scope: state.scope };
+  persist();
   emit();
 }
 
@@ -193,6 +246,30 @@ export const select = (id: string | null) => {
   emit();
 };
 
+/** The slides the person has marked — the agent's work order. */
+export function notedSlideIds(): string[] {
+  return [...new Set(openAnnotations().map(a => a.slideId))];
+}
+
+/** Where the agent may write. Transient UI in feel, but it is policy — persist it. */
+export function setScope(scope: 'noted' | 'all') {
+  state = { ...state, scope };
+  persist();
+  emit();
+}
+
+/**
+ * A note is the author's to change after it is pinned. Body and kind only —
+ * the stroke is redrawn, not edited, and status has its own verbs.
+ */
+export function updateAnnotation(id: string, patch: { body?: string; kind?: AnnotationKind }) {
+  set({
+    annotations: state.annotations.map(a =>
+      a.id === id ? { ...a, ...patch } : a),
+  });
+  return state.annotations.find(a => a.id === id) ?? null;
+}
+
 export function reopenAnnotation(id: string) {
   set({
     annotations: state.annotations.map(a =>
@@ -205,8 +282,9 @@ export function reset() {
   past.length = 0; future.length = 0;
   state = {
     deck: sampleDeck, annotations: seedAnnotations.map(a => ({ ...a })),
-    selected: null, calls: [],
+    selected: null, calls: [], scope: 'noted',
   };
+  persist();
   emit();
 }
 

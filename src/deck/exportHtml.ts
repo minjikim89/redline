@@ -98,6 +98,17 @@ function body(s: Slide): string {
   }
 }
 
+/**
+ * The model itself rides inside the file. Import finds it first and restores
+ * the deck exactly — the visual HTML below is for people and for other tools;
+ * the JSON is for the round trip. `<` is escaped so deck text can never close
+ * the script element early.
+ */
+const embedModel = (deck: Deck) =>
+  `<script type="application/json" id="redline-deck">${
+    JSON.stringify({ v: 1, deck }).replace(/</g, '\\u003c')
+  }</script>`;
+
 export function exportHtml(deck: Deck): string {
   const sections = deck.slides.map(s => {
     const t = TONE[s.tone ?? 'light'];
@@ -121,6 +132,7 @@ ${s.conflict ? `  <div class="flag">Flagged by an agent: ${esc(s.conflict.why)}<
 <head>
 <meta charset="utf-8">
 <title>${esc(deck.title)}</title>
+${embedModel(deck)}
 <style>
   :root{color-scheme:light}
   body{margin:0;background:#E9EAEF;line-height:1.5;

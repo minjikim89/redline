@@ -83,6 +83,7 @@ describe('write tools stay narrow', () => {
   });
 
   it('set_series tells you which slides do carry a series', async () => {
+    store.setScope('all');    // s01 carries no note; this test is about series discovery
     const r = await callable.set_series({ slideId: 's01', series: 'x', rows: [{ label: 'A', value: 1 }] });
     expect(r.ok).toBe(false);
     expect(r.error.slidesWithSeries.length).toBeGreaterThan(0);
@@ -109,6 +110,7 @@ describe('the chart form enum cannot drift from the renderer', () => {
   });
 
   it('refuses a slide with no chart at all', async () => {
+    store.setScope('all');    // s01 carries no note; this test is about applicability
     const r = await callable.set_chart_form({ slideId: 's01', chartForm: 'cards' });
     expect(r.error.code).toBe('NOT_APPLICABLE');
   });
@@ -197,5 +199,79 @@ describe('closing the loop', () => {
     const calls = store.getState().calls.slice(before);
     expect(calls.map(c => c.name)).toEqual(['list_slides', 'read_slide']);
     expect(calls[1].ok).toBe(false);
+  });
+});
+
+
+describe('the noted scope: marks are the work order', () => {
+  it('refuses a point write on a slide nobody marked', async () => {
+    const r = await callable.set_slide_text({ slideId: 's02', field: 'title', text: 'X' });
+    expect(r.ok).toBe(false);
+    expect(r.error.code).toBe('OUT_OF_SCOPE');
+    expect(r.error.notedSlideIds).toContain('s04');
+  });
+
+  it('allows the same write once the person widens the scope', async () => {
+    store.setScope('all');
+    const r = await callable.set_slide_text({ slideId: 's02', field: 'body', text: 'Widened.' });
+    expect(r.ok).toBe(true);
+  });
+
+  it('allows writes anywhere when no notes are open', async () => {
+    for (const a of store.openAnnotations()) store.resolveAnnotation(a.id);
+    const r = await callable.set_slide_text({ slideId: 's02', field: 'body', text: 'Queue is empty.' });
+    expect(r.ok).toBe(true);
+  });
+});
+
+describe('edit_items: structural editing', () => {
+  beforeEach(() => store.setScope('all'));
+
+  it('removes one card without touching the rest', async () => {
+    const before = store.getSlide('s03')!.props.cards.map((c: any) => c.head);
+    const r = await callable.edit_items({ slideId: 's03', list: 'cards', op: 'remove', index: 1 });
+    expect(r.ok).toBe(true);
+    const after = store.getSlide('s03')!.props.cards.map((c: any) => c.head);
+    expect(after).toEqual([before[0], before[2], before[3]]);
+  });
+
+  it('appends a well-formed item and refuses a malformed one', async () => {
+    const bad = await callable.edit_items({
+      slideId: 's03', list: 'cards', op: 'append', item: { headline: 'wrong key' },
+    });
+    expect(bad.ok).toBe(false);
+    expect(bad.error.allowedKeys).toContain('head');
+
+    const full = await callable.edit_items({
+      slideId: 's03', list: 'cards', op: 'append',
+      item: { index: '05', head: 'New block', body: 'Added by the agent.' },
+    });
+    expect(full.ok).toBe(false);          // cards holds at most 4 — the schema is the law
+
+    const good = await callable.edit_items({
+      slideId: 's09', list: 'events', op: 'append',
+      item: { year: '2027', text: 'Added by the agent.' },
+    });
+    expect(good.ok).toBe(true);
+    expect(store.getSlide('s09')!.props.events).toHaveLength(7);
+  });
+
+  it('moves an item and reports the list it cannot find', async () => {
+    const r = await callable.edit_items({ slideId: 's03', list: 'cards', op: 'move', index: 0, to: 2 });
+    expect(r.ok).toBe(true);
+    const missing = await callable.edit_items({ slideId: 's03', list: 'nope', op: 'remove', index: 0 });
+    expect(missing.ok).toBe(false);
+    expect(missing.error.listsOnThisSlide).toEqual(['cards']);
+  });
+
+  it('respects minItems: a list cannot be emptied', async () => {
+    const s6 = store.getSlide('s06')!;
+    const n = s6.props.items.length;
+    for (let i = n - 1; i >= 1; i--) {
+      await callable.edit_items({ slideId: 's06', list: 'items', op: 'remove', index: i });
+    }
+    const last = await callable.edit_items({ slideId: 's06', list: 'items', op: 'remove', index: 0 });
+    expect(last.ok).toBe(false);
+    expect(store.getSlide('s06')!.props.items).toHaveLength(1);
   });
 });

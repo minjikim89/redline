@@ -16,6 +16,41 @@ export interface ImportReport {
   sections: number;
   recognised: Record<string, number>;
   warnings: string[];
+  /** The file carried its own typed model; nothing was guessed. */
+  lossless?: boolean;
+  /** Nothing readable was found. The report explains instead of opening junk. */
+  fatal?: string;
+}
+
+/** The slide types the renderer can actually draw. */
+const KNOWN_TYPES = new Set<string>([
+  'cover', 'hero', 'cards', 'barsPair', 'flow', 'figures', 'panels', 'timeline', 'refs',
+]);
+
+/**
+ * A Redline export carries the deck model itself in a JSON island. Restoring
+ * from it is exact: every slide type, figure and source survives, because
+ * nothing is re-inferred from markup. Anything malformed falls through to the
+ * heuristic reader rather than failing the import.
+ */
+function readEmbeddedModel(doc: Document): Deck | null {
+  const el = doc.querySelector('script#redline-deck[type="application/json"]');
+  if (!el?.textContent) return null;
+  try {
+    const parsed = JSON.parse(el.textContent);
+    const deck = parsed?.deck;
+    if (!deck || !Array.isArray(deck.slides) || !deck.slides.length) return null;
+    const good = deck.slides.every((s: any) =>
+      s && typeof s.id === 'string' && KNOWN_TYPES.has(s.type)
+      && s.props && typeof s.props === 'object');
+    if (!good) return null;
+    return {
+      id: String(deck.id ?? 'imported'),
+      title: String(deck.title ?? 'Imported deck'),
+      theme: deck.theme ?? defaultTheme,
+      slides: deck.slides,
+    };
+  } catch { return null; }
 }
 
 /** More than this and the deck stops being reviewable; the report says so. */
@@ -127,6 +162,21 @@ const isShout = (s: string) => {
   return cased >= 2 && cased >= letters * 0.6;
 };
 
+/**
+ * The first clause of a block, for use as a card head. A sentence boundary is
+ * a ./!/?/; followed by whitespace or the end — a bare split on "." read the
+ * decimal in "+5.9%" as the end of the sentence and made "2025, +5" a heading.
+ */
+export function headOf(s: string): string {
+  for (let i = 0; i < s.length; i++) {
+    const c = s[i];
+    if (c === ';') return s.slice(0, i);
+    if ((c === '.' || c === '!' || c === '?')
+      && (i === s.length - 1 || /\s/.test(s[i + 1]))) return s.slice(0, i);
+  }
+  return s;
+}
+
 interface Read { blocks: string[]; headings: string[]; sources: Set<string> }
 
 /**
@@ -226,7 +276,7 @@ function classify(read: Read, index: number): { type: SlideType; props: any; ton
       props: {
         kicker: cap(kicker ?? 'Sources', 60), title: cap(heading, 200),
         source: source === undefined ? undefined : cap(source, 300),
-        groups: pairs.slice(0, 10).map(t => ({ topic: t.split(/[.:]/)[0].slice(0, 40), text: cap(t, 400) })),
+        groups: pairs.slice(0, 10).map(t => ({ topic: headOf(t).split(':')[0].slice(0, 40), text: cap(t, 400) })),
       },
     };
   }
@@ -249,11 +299,19 @@ function classify(read: Read, index: number): { type: SlideType; props: any; ton
       // not declare puts the line where nothing renders it: it survives export
       // but is invisible on the artboard, which is the worst of both.
       footnote: source === undefined ? undefined : cap(source, 400),
-      cards: (bodies.length ? bodies : [empty]).map((b, i) => ({
-        index: String(i + 1).padStart(2, '0'),
-        head: cap(b.split(/[.;]/)[0], 60),
-        body: cap(b, 300),
-      })),
+      cards: (bodies.length ? bodies : [empty]).map((b, i) => {
+        // The head is the first clause. Leaving that clause in the body prints
+        // the same sentence twice on one card; slicing it out reads as authored.
+        const h = headOf(b);
+        const rest = b.slice(h.length).replace(/^[\s.;!?]+/, '');
+        return {
+          index: String(i + 1).padStart(2, '0'),
+          head: cap(h, 60),
+          // A clause that is the whole block leaves no remainder; the body
+          // keeps the full block so no text is ever lost to a heading guess.
+          body: cap(h.length > 60 || !rest ? b : rest, 300),
+        };
+      }),
     },
   };
 }
@@ -261,6 +319,16 @@ function classify(read: Read, index: number): { type: SlideType; props: any; ton
 export function importHtml(html: string, name: string): ImportReport {
   const doc = new DOMParser().parseFromString(html, 'text/html');
   const warnings: string[] = [];
+
+  const embedded = readEmbeddedModel(doc);
+  if (embedded) {
+    const recognised: Record<string, number> = {};
+    embedded.slides.forEach(s => { recognised[s.type] = (recognised[s.type] ?? 0) + 1; });
+    return {
+      deck: embedded, sections: embedded.slides.length,
+      recognised, warnings: [], lossless: true,
+    };
+  }
 
   let sections: Element[] = Array.from(doc.querySelectorAll('section'));
   // A <section> holding other sections is a container — reveal.js stacks
@@ -296,6 +364,19 @@ export function importHtml(html: string, name: string): ImportReport {
     if (!read.blocks.length) warnings.push(`Section ${i + 1} had no readable text.`);
     return { id: `i${String(i + 1).padStart(2, '0')}`, type, tone, props } as Slide;
   });
+
+  // A page with no readable copy at all is not a deck — opening it would hand
+  // the person one empty slide called "Slide 1" and make the importer look
+  // broken instead of the file. Say what happened and stop.
+  const anyText = sections.some(sec => clean(sec.textContent ?? '').length > 0);
+  if (!anyText) {
+    return {
+      deck: { id: 'imported', title: 'Nothing readable', theme: defaultTheme, slides: [] },
+      sections: sections.length, recognised: {},
+      warnings,
+      fatal: 'No readable slide content was found in that file. It may be an app page or a script-rendered deck — export it as static HTML first.',
+    };
+  }
 
   // querySelector('title') also matches an <svg><title>, so a chart's
   // accessible name would win over the document's own.

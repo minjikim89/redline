@@ -99,6 +99,17 @@ export const registry: Record<SlideType, SlideDef> = {
     elements: ['kicker', 'title', 'chart', 'footnote'],
     propSchema: {
       kicker: str(60), title: str(200),
+      items: {
+        type: 'array', minItems: 1, maxItems: 6,
+        items: {
+          type: 'object',
+          properties: {
+            tag: str(20), head: str(80), figure: str(24),
+            value: { type: 'number' }, body: str(300),
+          },
+          required: ['head', 'figure', 'value'], additionalProperties: false,
+        },
+      },
       chartForm: {
         type: 'string', enum: ['cards', 'column', 'pie'],
         description:

@@ -13,6 +13,12 @@ export function Start({ onEnter }: { onEnter: () => void }) {
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
+  // A previous session was picked up from localStorage. Offer to continue it —
+  // reopening the sample over someone's half-finished review is data loss.
+  const restored = store.restoredFromSave ? store.getState() : null;
+  const restoredOpen = restored
+    ? restored.annotations.filter(a => a.status === 'open').length : 0;
+
   /** Same path as a dropped file — handy for a demo, and it proves the parser. */
   const takeUrl = async (url: string, name: string) => {
     setBusy(true); setError(null);
@@ -55,10 +61,24 @@ export function Start({ onEnter }: { onEnter: () => void }) {
           <p>A deck you and your agent both have hands in.</p>
         </header>
 
-        <button className="st-primary" onClick={onEnter}>
-          Open the sample briefing
-          <em>From Screen to Cart · 12 slides, already marked up</em>
-        </button>
+        {restored ? (
+          <>
+            <button className="st-primary" onClick={onEnter}>
+              Continue where you left off
+              <em>{restored.deck.title} · {restored.deck.slides.length} slides
+                {restoredOpen > 0 && ` · ${restoredOpen} note${restoredOpen === 1 ? '' : 's'} open`}</em>
+            </button>
+            <button className="st-second" onClick={() => { store.reset(); onEnter(); }}>
+              Start over with the sample briefing
+              <em>From Screen to Cart · 12 slides, already marked up</em>
+            </button>
+          </>
+        ) : (
+          <button className="st-primary" onClick={onEnter}>
+            Open the sample briefing
+            <em>From Screen to Cart · 12 slides, already marked up</em>
+          </button>
+        )}
 
         <div className="st-or"><span>or bring your own</span></div>
 
@@ -87,24 +107,36 @@ export function Start({ onEnter }: { onEnter: () => void }) {
         {error && <p className="st-err">{error}</p>}
 
         {report && (
-          <div className="st-report">
+          <div className={report.fatal ? 'st-report bad' : 'st-report'}>
             <div className="st-r-h">
-              <strong>{report.deck.title}</strong>
-              <span>{report.sections} sections read</span>
+              <strong>{report.fatal ? 'Could not read that as a deck' : report.deck.title}</strong>
+              {!report.fatal && <span>{report.sections} sections read</span>}
             </div>
-            <ul className="st-r-types">
-              {Object.entries(report.recognised).map(([t, n]) => (
-                <li key={t}><b>{n}</b> {t}</li>
-              ))}
-            </ul>
-            {report.warnings.length > 0 && (
-              <ul className="st-r-warn">
-                {report.warnings.slice(0, 3).map(w => <li key={w}>{w}</li>)}
-              </ul>
+            {report.fatal ? (
+              <p className="st-r-fatal">{report.fatal}</p>
+            ) : (
+              <>
+                {report.lossless && (
+                  <p className="st-r-exact">
+                    ✓ This file carries its own Redline model — restored exactly,
+                    nothing re-guessed from markup.
+                  </p>
+                )}
+                <ul className="st-r-types">
+                  {Object.entries(report.recognised).map(([t, n]) => (
+                    <li key={t}><b>{n}</b> {t}</li>
+                  ))}
+                </ul>
+                {report.warnings.length > 0 && (
+                  <ul className="st-r-warn">
+                    {report.warnings.slice(0, 3).map(w => <li key={w}>{w}</li>)}
+                  </ul>
+                )}
+                <button className="st-go" onClick={() => { store.loadDeck(report.deck); onEnter(); }}>
+                  Open it →
+                </button>
+              </>
             )}
-            <button className="st-go" onClick={() => { store.loadDeck(report.deck); onEnter(); }}>
-              Open it →
-            </button>
           </div>
         )}
 

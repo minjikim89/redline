@@ -10,7 +10,7 @@ const KINDS: { k: AnnotationKind; label: string }[] = [
 
 interface Draft { stroke: Pt[]; targets: Target[]; labelAt: Pt }
 
-const NOTE_W = 182;   // keep in step with .scribble width
+const NOTE_W = 236;   // keep in step with .scribble width
 const GAP = 14;
 
 /**
@@ -82,6 +82,7 @@ export function InkLayer({ slideId, mode, canvasRef, slideRef, annotations, sele
   const [kind, setKind] = useState<AnnotationKind>('fix');
   const [body, setBody] = useState('');
   const [hover, setHover] = useState<string | null>(null);
+  const [editing, setEditing] = useState<string | null>(null);
   const drawing = useRef(false);
 
   useEffect(() => {
@@ -279,15 +280,19 @@ export function InkLayer({ slideId, mode, canvasRef, slideRef, annotations, sele
                 && a.replies[a.replies.length - 1].author === 'agent'
                 && <b className="wait"> · waiting on you</b>}
             </span>
-            <span className={a.status === 'resolved' ? 'sb-body struck' : 'sb-body'}>{a.body}</span>
+            {editing === a.id
+              ? <NoteEdit annotation={a} done={() => setEditing(null)} />
+              : <span className={a.status === 'resolved' ? 'sb-body struck' : 'sb-body'}>{a.body}</span>}
             {a.replies.map(r => (
               <span key={r.id} className={`scribble-reply ${r.author}`}>
                 {r.author === 'agent' ? '↳ ' : '↩ '}{r.body}
               </span>
             ))}
-            {on && <HumanReply annotationId={a.id} />}
-            {on && (
+            {on && editing !== a.id && <HumanReply annotationId={a.id} />}
+            {on && editing !== a.id && (
               <div className="mark-acts" onPointerDown={e => e.stopPropagation()}>
+                {a.status === 'open' && a.author === 'human'
+                  && <button onClick={() => setEditing(a.id)}>✎ edit</button>}
                 {a.status === 'open'
                   ? <button onClick={() => { store.resolveAnnotation(a.id); store.select(null); }}>✓ resolve</button>
                   : <button onClick={() => store.reopenAnnotation(a.id)}>↺ reopen</button>}
@@ -324,6 +329,39 @@ export function InkLayer({ slideId, mode, canvasRef, slideRef, annotations, sele
         </div>
       )}
     </>
+  );
+}
+
+/**
+ * A pinned note stays the author's to change. Body and kind edit in place;
+ * the mark itself is redrawn, not edited.
+ */
+function NoteEdit({ annotation, done }: { annotation: Annotation; done: () => void }) {
+  const [text, setText] = useState(annotation.body);
+  const [k, setK] = useState<AnnotationKind>(annotation.kind);
+  const save = () => {
+    if (text.trim()) store.updateAnnotation(annotation.id, { body: text.trim(), kind: k });
+    done();
+  };
+  return (
+    <div className="ne" onPointerDown={e => e.stopPropagation()}>
+      <div className="se-kinds">
+        {KINDS.map(x => (
+          <button key={x.k} className={k === x.k ? `se-k on k-${x.k}` : 'se-k'}
+            onClick={() => setK(x.k)}>{x.label}</button>
+        ))}
+      </div>
+      <textarea autoFocus value={text} rows={3}
+        onChange={e => setText(e.target.value)}
+        onKeyDown={e => {
+          if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); save(); }
+          if (e.key === 'Escape') done();
+        }} />
+      <div className="mark-acts">
+        <button onClick={save}>✓ save</button>
+        <button onClick={done}>cancel</button>
+      </div>
+    </div>
   );
 }
 

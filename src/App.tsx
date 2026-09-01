@@ -42,6 +42,8 @@ export default function App() {
   );
   const [tick, setTick] = useState(0);
   const [saying, setSaying] = useState<string | null>(null);
+  const [confirmClear, setConfirmClear] = useState(false);
+  const [cfDraft, setCfDraft] = useState<string | null>(null);
   const replayCtl = useRef<AbortController | null>(null);
 
   const fitRef = useRef<HTMLDivElement>(null);
@@ -207,7 +209,26 @@ export default function App() {
         <div className="queue">
           <span className="q-n">{openCount}</span>
           <span className="q-l">{openCount === 1 ? 'note open' : 'notes open'}</span>
-          {openCount > 0 && <button className="q-x" onClick={() => store.clearOpen()}>clear</button>}
+          {openCount > 0 && (
+            confirmClear
+              ? <button className="q-x armed"
+                  onBlur={() => setConfirmClear(false)}
+                  onClick={() => { store.clearOpen(); setConfirmClear(false); }}>
+                  delete {openCount}?
+                </button>
+              : <button className="q-x" onClick={() => setConfirmClear(true)}>clear</button>
+          )}
+        </div>
+        {/* The person's marks are the agent's work order; this switch is the law
+            the write tools enforce. 'noted only' refuses edits on unmarked slides. */}
+        <div className="scope">
+          <span className="sc-l">agent may edit</span>
+          <div className="sc-seg">
+            <button className={s.scope === 'noted' ? 'on' : ''} title="Only slides carrying an open note"
+              onClick={() => store.setScope('noted')}>noted only</button>
+            <button className={s.scope === 'all' ? 'on' : ''} title="Any slide in the deck"
+              onClick={() => store.setScope('all')}>whole deck</button>
+          </div>
         </div>
         {s.calls.length > 0 && (
           <div className="trail">
@@ -278,16 +299,41 @@ export default function App() {
             </div>
             <p className="cf-claim">“{slide.conflict.claim}”</p>
             <p className="cf-why">{slide.conflict.why}</p>
-            <div className="cf-acts">
-              <button className="cf-keep" onClick={() => store.clearConflict(slide.id)}>
-                keep the claim
-              </button>
-              <button className="cf-edit" onClick={() => {
-                const next = prompt('Rewrite the claim:', String(slide.props.title ?? ''));
-                if (next) store.updateSlideProps(slide.id, { title: next });
-                store.clearConflict(slide.id);
-              }}>rewrite it</button>
-            </div>
+            {cfDraft === null ? (
+              <div className="cf-acts">
+                <button className="cf-keep" onClick={() => store.clearConflict(slide.id)}>
+                  keep the claim
+                </button>
+                <button className="cf-edit"
+                  onClick={() => setCfDraft(String(slide.props.title ?? ''))}>rewrite it</button>
+              </div>
+            ) : (
+              <div className="cf-rewrite">
+                <textarea autoFocus value={cfDraft} rows={2}
+                  onChange={e => setCfDraft(e.target.value)}
+                  onKeyDown={e => {
+                    if (e.key === 'Escape') setCfDraft(null);
+                    if (e.key === 'Enter' && !e.shiftKey) {
+                      e.preventDefault();
+                      if (cfDraft.trim()) {
+                        store.updateSlideProps(slide.id, { title: cfDraft.trim() });
+                        store.clearConflict(slide.id);
+                      }
+                      setCfDraft(null);
+                    }
+                  }} />
+                <div className="cf-acts">
+                  <button className="cf-keep" onClick={() => setCfDraft(null)}>cancel</button>
+                  <button className="cf-edit" onClick={() => {
+                    if (cfDraft.trim()) {
+                      store.updateSlideProps(slide.id, { title: cfDraft.trim() });
+                      store.clearConflict(slide.id);
+                    }
+                    setCfDraft(null);
+                  }}>save the rewrite</button>
+                </div>
+              </div>
+            )}
           </div>
         )}
 

@@ -43,7 +43,7 @@ const ok = (o: object) => ({ ok: true, ...o });
  * allow the model to self-correct and retry with new, valid parameters.")
  */
 const fail = (
-  code: 'NOT_FOUND' | 'INVALID_INPUT' | 'NOT_APPLICABLE' | 'CANCELLED',
+  code: 'NOT_FOUND' | 'INVALID_INPUT' | 'NOT_APPLICABLE' | 'CANCELLED' | 'OUT_OF_SCOPE',
   message: string,
   recovery: object = {},
   retrySafe = true,
@@ -64,6 +64,25 @@ function fit<T>(items: T[], render: (t: T) => any) {
 
 const slideIds = () => store.getState().deck.slides.map(s => s.id);
 const openIds = () => store.openAnnotations().map(a => a.id);
+
+/**
+ * The person's marks are the work order. While the scope switch says 'noted'
+ * and at least one note is open, a write that targets an unmarked slide is
+ * refused — this is what stops a well-meaning sweep from "fixing" nine slides
+ * nobody asked about. The person can widen the scope on the page at any time.
+ */
+const outOfScope = (slideId: string) => {
+  const st = store.getState();
+  if (st.scope !== 'noted') return null;
+  const noted = store.notedSlideIds();
+  if (!noted.length || noted.includes(slideId)) return null;
+  return fail('OUT_OF_SCOPE',
+    `The person has scoped edits to the slides they marked, and "${slideId}" carries no open note.`,
+    {
+      notedSlideIds: noted,
+      hint: 'Work the noted slides. If this edit is needed anyway, say so on a note and let the person widen the scope switch next to the queue.',
+    });
+};
 
 export function webmcpSupported() {
   return typeof document !== 'undefined'
@@ -89,7 +108,15 @@ const baseTools: Reg[] = [
         id: s.id, type: s.type,
         head: String(s.props.title ?? s.props.caption ?? 'cover').slice(0, 60),
       }));
-      return ok({ deck: store.getState().deck.title, slides: items, omitted });
+      const st = store.getState();
+      return ok({
+        deck: st.deck.title, slides: items, omitted,
+        // The person's standing instruction, stated up front rather than
+        // discovered through a refusal three calls in. Kept terse — this
+        // response lives inside the documented output budget.
+        editableSlides: st.scope === 'noted' && store.notedSlideIds().length
+          ? store.notedSlideIds() : 'all',
+      });
     },
   },
   {
@@ -137,7 +164,11 @@ const baseTools: Reg[] = [
           waitingOn: a.replies[a.replies.length - 1].author === 'agent' ? 'them' : 'you',
         }),
       }));
-      return ok({ open: items, omitted, note: 'Re-read this after each change; it can grow.' });
+      return ok({
+        open: items, omitted,
+        scope: store.getState().scope,
+        note: 'Re-read this after each change; it can grow.',
+      });
     },
   },
   {
@@ -159,6 +190,8 @@ const baseTools: Reg[] = [
     execute: async ({ slideId, field, text }: any) => {
       const s = store.getSlide(slideId);
       if (!s) return fail('NOT_FOUND', `No slide "${slideId}".`, { knownSlideIds: slideIds() });
+      const scoped = outOfScope(slideId);
+      if (scoped) return scoped;
       if (!(field in registry[s.type].propSchema))
         return fail('NOT_APPLICABLE', `A ${s.type} slide has no "${field}".`,
           { fieldsOnThisSlide: Object.keys(registry[s.type].propSchema) });
@@ -195,6 +228,8 @@ const baseTools: Reg[] = [
     execute: async ({ slideId, series, rows }: any) => {
       const s = store.getSlide(slideId);
       if (!s) return fail('NOT_FOUND', `No slide "${slideId}".`, { knownSlideIds: slideIds() });
+      const scoped = outOfScope(slideId);
+      if (scoped) return scoped;
       const available = registry[s.type].series ?? [];
       if (!available.length)
         return fail('NOT_APPLICABLE', `A ${s.type} slide draws no series.`,
@@ -205,6 +240,82 @@ const baseTools: Reg[] = [
           { seriesOnThisSlide: available });
       store.setByPath(slideId, series, rows);
       return ok({ slideId, series, rows: rows.length });
+    },
+  },
+  {
+    name: 'edit_items',
+    title: 'Add, remove, replace or move one list item',
+    description:
+      'Structural editing of a slide\'s list — its cards, steps, items, events, panels or '
+      + 'groups. One operation per call: append an item, remove the item at an index, replace '
+      + 'it, or move it. When a note says a block should go, remove it — do not rewrite every '
+      + 'other block around it. read_slide shows each list and its current items.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        slideId: { type: 'string' },
+        list: {
+          type: 'string',
+          description: 'The list prop to edit, e.g. "cards", "steps", "items", "events", "panels", "groups".',
+        },
+        op: { type: 'string', enum: ['append', 'remove', 'replace', 'move'] },
+        index: { type: 'integer', minimum: 0, description: 'Which item, for remove / replace / move.' },
+        to: { type: 'integer', minimum: 0, description: 'Destination index, for move.' },
+        item: { type: 'object', description: 'The item to append or to replace with, shaped as read_slide shows.' },
+      },
+      required: ['slideId', 'list', 'op'], additionalProperties: false,
+    },
+    execute: async ({ slideId, list, op, index, to, item }: any) => {
+      const s = store.getSlide(slideId);
+      if (!s) return fail('NOT_FOUND', `No slide "${slideId}".`, { knownSlideIds: slideIds() });
+      const scoped = outOfScope(slideId);
+      if (scoped) return scoped;
+
+      const schema = registry[s.type].propSchema[list];
+      const editableLists = Object.entries<any>(registry[s.type].propSchema)
+        .filter(([, v]) => v?.type === 'array' && v.items?.properties)
+        .map(([k]) => k);
+      if (!schema || schema.type !== 'array' || !schema.items?.properties)
+        return fail('NOT_APPLICABLE', `A ${s.type} slide has no editable list "${list}".`,
+          { listsOnThisSlide: editableLists });
+
+      const rows: any[] = Array.isArray(s.props[list]) ? [...s.props[list]] : [];
+      const max = schema.maxItems ?? 24;
+      const min = schema.minItems ?? 0;
+      const bad = (msg: string, extra: object = {}) => fail('INVALID_INPUT', msg, extra);
+
+      if (op === 'append' || op === 'replace') {
+        if (!item || typeof item !== 'object') return bad('Pass the item to write.');
+        const allowed = Object.keys(schema.items.properties);
+        const unknown = Object.keys(item).filter(k => !allowed.includes(k));
+        if (unknown.length)
+          return bad(`Unknown key(s) ${unknown.join(', ')} on this item.`, { allowedKeys: allowed });
+        const missing = (schema.items.required ?? []).filter((k: string) => !(k in item));
+        if (missing.length)
+          return bad(`The item is missing ${missing.join(', ')}.`, { requiredKeys: schema.items.required });
+      }
+
+      if (op === 'append') {
+        if (rows.length >= max) return bad(`This list holds at most ${max} items.`);
+        rows.push(item);
+      } else {
+        if (typeof index !== 'number' || index < 0 || index >= rows.length)
+          return bad(`"index" must be 0..${rows.length - 1}.`, { count: rows.length });
+        if (op === 'remove') {
+          if (rows.length <= min) return bad(`This list needs at least ${min} item(s).`);
+          rows.splice(index, 1);
+        } else if (op === 'replace') {
+          rows[index] = item;
+        } else if (op === 'move') {
+          if (typeof to !== 'number' || to < 0 || to >= rows.length)
+            return bad(`"to" must be 0..${rows.length - 1}.`, { count: rows.length });
+          const [m] = rows.splice(index, 1);
+          rows.splice(to, 0, m);
+        }
+      }
+
+      store.setByPath(slideId, list, rows);
+      return ok({ slideId, list, op, count: rows.length });
     },
   },
   {
@@ -273,6 +384,8 @@ const conditionalTools: Record<string, Reg> = {
     execute: async ({ slideId, chartForm, rationale }: any) => {
       const s = store.getSlide(slideId);
       if (!s) return fail('NOT_FOUND', `No slide "${slideId}".`, { knownSlideIds: slideIds() });
+      const scoped = outOfScope(slideId);
+      if (scoped) return scoped;
       if (!('chartForm' in registry[s.type].propSchema))
         return fail('NOT_APPLICABLE', `A ${s.type} slide has no chart form.`,
           { slidesWithChartForm: store.getState().deck.slides
@@ -323,6 +436,8 @@ const conditionalTools: Record<string, Reg> = {
     execute: async ({ slideId, value, unit, source, asOf, contradicts }: any) => {
       const s = store.getSlide(slideId);
       if (!s) return fail('NOT_FOUND', `No slide "${slideId}".`, { knownSlideIds: slideIds() });
+      const scoped = outOfScope(slideId);
+      if (scoped) return scoped;
       const patch: Record<string, unknown> = { source, asOf };
       if (value !== undefined) patch.value = value;
       if (unit !== undefined) patch.unit = unit;
@@ -352,7 +467,9 @@ const conditionalTools: Record<string, Reg> = {
       'Make one convention consistent across a deck: sets the same text field on several '
       + 'slides in one call, applied in sequence so the person watching can stop it partway. '
       + 'This is the tool for "these are formatted three different ways, pick one". Use '
-      + '"{value}" in the template to keep each slide\'s existing text and wrap it.',
+      + '"{value}" in the template to keep each slide\'s existing text and wrap it. This '
+      + 'sweep may cross the noted scope because the person watches it land slide by slide — '
+      + 'sweep only what the note actually asks for.',
     inputSchema: {
       type: 'object',
       properties: {

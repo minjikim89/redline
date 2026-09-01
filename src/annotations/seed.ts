@@ -32,21 +32,21 @@ const mk = (
 export const seedAnnotations: Annotation[] = [
   // s06 — a pie asserts a whole these three export lines do not form
   mk('seed_pie', 's06', 'visualize',
-    "these aren't parts of one whole. a pie implies a total that doesn't mean anything.",
+    "These aren't parts of one whole — a pie implies a total that doesn't mean anything.",
     ring(0.335, 0.545, 0.115, 0.235, 1.7),
     { x: -0.148, y: 0.28 },
     [{ elementId: 'chart', label: 'the export figures' }]),
 
   // s08 — one panel is a year behind the other
   mk('seed_stale', 's08', 'research',
-    "hybe is 2024, dearu is q4 2025. get the current hybe numbers with a source.",
+    "HYBE is 2024, DearU is Q4 2025. Get the current HYBE numbers, with a source.",
     ring(0.748, 0.545, 0.175, 0.215, 3.3),
     { x: 1.012, y: 0.28 },
     [{ elementId: 'panel.1', label: 'panel: Commerce · HYBE platform segment (2024)' }]),
 
   // s04 — three different source conventions across the deck
   mk('seed_src', 's04', 'fix',
-    "source lines are written three ways across slides 4, 5 and 7. pick one.",
+    "Source lines are written three ways across slides 4, 5 and 7 — pick one.",
     ring(0.26, 0.945, 0.245, 0.035, 5.1),
     { x: 1.012, y: 0.72 },
     [{ elementId: 'source', label: 'source line' }]),

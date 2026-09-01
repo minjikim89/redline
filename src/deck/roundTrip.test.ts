@@ -112,6 +112,7 @@ describe('round trip — every slide type', () => {
         props: { title: 'T', cards: [{ index: '01', head: 'Storage grew on retention', body: 'Storage grew on retention rather than on user growth over the same window.' }] },
       }] as any,
     });
-    expect(out.match(/Storage grew on retention/g)).toHaveLength(1);
+    const visual = out.replace(/<script type="application\/json"[\s\S]*?<\/script>/, '');
+    expect(visual.match(/Storage grew on retention/g)).toHaveLength(1);
   });
 });

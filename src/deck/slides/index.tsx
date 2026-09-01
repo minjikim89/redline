@@ -14,7 +14,7 @@ export function CoverSlide({ eyebrow, title, subtitle, meta }: any) {
         <A id="subtitle" label="standfirst" path="subtitle" className="cover-sub">{subtitle}</A>
       </div>
       <A id="meta" label="cover meta" className="cover-meta">
-        {meta?.map((m: string) => <span key={m}>{m}</span>)}
+        {meta?.map((m: string, i: number) => <span key={i}>{m}</span>)}
       </A>
     </div>
   );
@@ -45,15 +45,18 @@ export function CardsSlide({ kicker, accent, title, cards, footnote, footMark, t
           <A id="footnote.text" label="closing note" path="footnote"><p>{footnote}</p></A>
         </div>
       )}>
-      <div className="cards" style={{ gridTemplateColumns: `repeat(${cards?.length ?? 3},1fr)` }}>
+      <div className="cards"
+        style={{ gridTemplateColumns: `repeat(${Math.min(cards?.length ?? 3, 4)},1fr)` }}>
         {cards?.map((c: any, i: number) => (
-          <A key={c.head} id={`card.${i}`} label={`card: ${c.head}`}
+          <A key={i} id={`card.${i}`} label={`card: ${c.head}`}
             className={`card${tone === 'dark' ? ' on-dark' : ''}`}>
             <span className="card-ix" style={{ color: c.color ?? PINK }}>{c.index}</span>
             <A id={`card.${i}.head`} label={`card head: ${c.head}`}
               path={`cards.${i}.head`} className="card-head">{c.head}</A>
-            <A id={`card.${i}.body`} label={`card body: ${c.head}`}
-              path={`cards.${i}.body`} className="card-body">{c.body}</A>
+            {c.body !== c.head && (
+              <A id={`card.${i}.body`} label={`card body: ${c.head}`}
+                path={`cards.${i}.body`} className="card-body">{c.body}</A>
+            )}
           </A>
         ))}
       </div>
@@ -70,7 +73,7 @@ export function BarsPairSlide({ kicker, accent, title, left, right, source, asOf
     return (
       <BarGroup caption={g.caption} note={g.note} side={side as 'left' | 'right'}
         rows={g.rows.map((r: any, i: number) => (
-          <BarRow key={r.label} id={`${side}.bar.${i}`} label={r.label}
+          <BarRow key={i} id={`${side}.bar.${i}`} label={r.label}
             path={`${side}.rows.${i}`}
             value={r.value} unit={g.unit} pct={(r.value / max) * 100}
             color={r.color ?? (r.strong ? PINK : NEUTRAL)} strong={r.strong} />
@@ -95,7 +98,7 @@ export function FlowSlide({ kicker, accent, title, steps, chart, notes, source, 
       <div className="flow-wrap">
         <div className="flow">
           {steps?.map((s: any, i: number) => (
-            <Fragment key={s.head ?? i}>
+            <Fragment key={i}>
               {i > 0 && <span className="flow-arrow" style={{ color: accent }}>→</span>}
               <A id={`step.${i}`} label={`step: ${s.head}`} className="flow-card">
                 <A id={`step.${i}.head`} label={`step: ${s.head}`}
@@ -110,8 +113,8 @@ export function FlowSlide({ kicker, accent, title, steps, chart, notes, source, 
           <A id="chart" label="the conversion chart" className="proxy">
             <div className="proxy-cap">{chart?.caption}</div>
             <div className="proxy-cols">
-              {chart?.points?.map((p: any) => (
-                <div className="proxy-col" key={p.label}>
+              {chart?.points?.map((p: any, pi: number) => (
+                <div className="proxy-col" key={pi}>
                   <span className="proxy-v">{p.value}{chart.unit}</span>
                   <div className="proxy-bar" style={{
                     height: `${(p.value / max) * 190}px`, background: accent,
@@ -123,7 +126,7 @@ export function FlowSlide({ kicker, accent, title, steps, chart, notes, source, 
           </A>
           <div className="flow-notes">
             {notes?.map((n: string, i: number) => (
-              <p key={n} className={i === 0 ? 'note-lead' : 'note-sub'}>{n}</p>
+              <p key={i} className={i === 0 ? 'note-lead' : 'note-sub'}>{n}</p>
             ))}
           </div>
         </div>
@@ -152,7 +155,7 @@ export function FiguresSlide({ kicker, accent, title, chartForm = 'pie', items, 
           const [x1, y1] = [210 + 190 * Math.cos(a), 210 + 190 * Math.sin(a)];
           a += sweep;
           const [x2, y2] = [210 + 190 * Math.cos(a), 210 + 190 * Math.sin(a)];
-          return <path key={it.tag} fill={colors[i % 3]} stroke="#F5F6FA" strokeWidth="3"
+          return <path key={i} fill={colors[i % 3]} stroke="#F5F6FA" strokeWidth="3"
             d={`M 210 210 L ${x1} ${y1} A 190 190 0 ${sweep > Math.PI ? 1 : 0} 1 ${x2} ${y2} Z`} />;
         })}
       </svg>
@@ -162,7 +165,7 @@ export function FiguresSlide({ kicker, accent, title, chartForm = 'pie', items, 
   return (
     <Sheet kicker={kicker} accent={accent} title={title}
       foot={<A id="footnote" label="closing notes" className="fig-notes">
-        {notes?.map((n: string) => <p key={n}>{n}</p>)}
+        {notes?.map((n: string, i: number) => <p key={i}>{n}</p>)}
       </A>}>
       <A id="chart" label="the export figures" className={`figs form-${chartForm}`}>
         {chartForm === 'pie' ? (
@@ -170,7 +173,7 @@ export function FiguresSlide({ kicker, accent, title, chartForm = 'pie', items, 
             {pie()}
             <ul className="fig-legend">
               {items?.map((it: any, i: number) => (
-                <li key={it.tag}>
+                <li key={i}>
                   <i style={{ background: colors[i % 3] }} />
                   <span>{it.head}</span><b>{it.figure}</b>
                 </li>
@@ -181,20 +184,21 @@ export function FiguresSlide({ kicker, accent, title, chartForm = 'pie', items, 
           <div className="fig-plotwrap">
             <div className="fig-plot">
               {items?.map((it: any, i: number) => (
-                <div className="fig-col" key={it.tag}>
+                <div className="fig-col" key={i}>
                   <span className="fig-col-v">{it.figure}</span>
                   <div style={{ height: `${(it.value / max) * 100}%`, background: colors[i % 3] }} />
                 </div>
               ))}
             </div>
             <div className="fig-labels">
-              {items?.map((it: any) => <span key={it.tag}>{it.head}</span>)}
+              {items?.map((it: any, i: number) => <span key={i}>{it.head}</span>)}
             </div>
           </div>
         ) : (
-          <div className="fig-cards">
+          <div className="fig-cards"
+            style={{ gridTemplateColumns: `repeat(${Math.min(items?.length ?? 3, 3)},1fr)` }}>
             {items?.map((it: any, i: number) => (
-              <div className="fig-card" key={it.tag}>
+              <div className="fig-card" key={i}>
                 <span className="fig-tag" style={{ color: colors[i % 3] }}>{it.tag}</span>
                 <A id={`item.${i}.head`} label={`figure label: ${it.head}`}
                   path={`items.${i}.head`} className="fig-head">{it.head}</A>
@@ -217,12 +221,12 @@ export function PanelsSlide({ kicker, accent, title, panels, source, asOf }: any
     <Sheet kicker={kicker} accent={accent} title={title} source={source} asOf={asOf}>
       <div className="two-col">
         {panels?.map((p: any, pi: number) => (
-          <A key={p.heading} id={`panel.${pi}`} label={`panel: ${p.heading}`}
+          <A key={pi} id={`panel.${pi}`} label={`panel: ${p.heading}`}
             className={`panel${p.dark ? ' dark' : ''}`}>
             <span className="panel-head" style={{ color: pi === 0 ? PINK : VIOLET }}>{p.heading}</span>
             <div className="panel-grid">
               {p.metrics?.map((m: any, mi: number) => (
-                <div className="panel-m" key={m.label}
+                <div className="panel-m" key={mi}
                   data-el-id={`panel.${pi}.metric.${mi}`} data-el-label={`figure: ${m.label}`}>
                   <A id={`panel.${pi}.metric.${mi}.value`} label={`figure: ${m.label}`}
                     path={`panels.${pi}.metrics.${mi}.value`} className="panel-v"
@@ -249,14 +253,14 @@ export function TimelineSlide({ kicker, accent, title, events, source }: any) {
     <Sheet kicker={kicker} accent={accent} title={title} source={source}>
       <div className="tline">
         <div className="tline-years">
-          {events?.map((e: any) => (
-            <span key={e.year} style={{ color: e.late ? PINK : VIOLET }}>{e.year}</span>
+          {events?.map((e: any, i: number) => (
+            <span key={i} style={{ color: e.late ? PINK : VIOLET }}>{e.year}</span>
           ))}
         </div>
         <div className="tline-rule" />
         <div className="tline-items">
           {events?.map((e: any, i: number) => (
-            <A key={e.year} id={`event.${e.year}`} label={`${e.year} entry`} className="tline-item">
+            <A key={i} id={`event.${e.year}`} label={`${e.year} entry`} className="tline-item">
               <i style={{ background: e.late ? PINK : VIOLET }} />
               <A id={`event.${e.year}.text`} label={`${e.year} text`}
                 path={`events.${i}.text`}><p>{e.text}</p></A>
@@ -274,7 +278,7 @@ export function RefsSlide({ kicker, accent, title, groups, source }: any) {
   const col = (list: any[], side: string, offset: number) => (
     <div className="refs-col">
       {list.map((g, i) => (
-        <div key={g.topic} className="ref"
+        <div key={i} className="ref"
           data-el-id={`${side}.ref.${i}`} data-el-label={`reference: ${g.topic}`}>
           <A id={`${side}.ref.${i}.topic`} label={`reference topic: ${g.topic}`}
             path={`groups.${offset + i}.topic`} className="ref-topic">{g.topic}</A>{' '}

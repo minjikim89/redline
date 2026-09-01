@@ -20,6 +20,27 @@ const TONE: Record<string, { bg: string; fg: string; mut: string }> = {
   accent: { bg: '#FF00C8', fg: '#12000E', mut: '#3D0032' },
 };
 
+/** Closing lines that sit under a slide's columns, not as another column. */
+function after(s: Slide): string {
+  const p = s.props;
+  const para = (t: unknown) => `<p>${esc(t)}</p>`;
+  // Marked so it comes back as the footnote it left as, rather than as one
+  // more card body — and placed under the columns rather than beside them.
+  if (s.type === 'cards' && p.footnote)
+    return `<div class="footnote">${esc(p.footnote)}</div>`;
+  if (s.type === 'figures') return (p.notes ?? []).map(para).join('');
+  if (s.type === 'flow') {
+    const chart = p.chart
+      ? `<div class="cap">${esc(p.chart.caption)}</div>`
+        + (p.chart.points ?? []).map((pt: any) =>
+          `<div class="row"><span>${esc(pt.label)}</span>`
+          + `<span>${esc(pt.value)}${esc(p.chart.unit ?? '')}</span></div>`).join('')
+      : '';
+    return chart + (p.notes ?? []).map(para).join('');
+  }
+  return '';
+}
+
 function body(s: Slide): string {
   const p = s.props;
   const para = (t: unknown) => `<p>${esc(t)}</p>`;
@@ -43,23 +64,16 @@ function body(s: Slide): string {
         const dup = !!head && String(c.body ?? '').startsWith(head);
         return `<div class="card"><div class="eyebrow">${esc(c.index)}</div>`
           + (dup ? '' : `<h3>${esc(c.head)}</h3>`) + `${para(c.body)}</div>`;
-      }).join('')
-        // Marked, so it comes back as the footnote it left as rather than as
-        // one more card body.
-        + (p.footnote ? `<div class="footnote">${esc(p.footnote)}</div>` : '');
+      }).join('');
     case 'barsPair':
       return bars(p.left) + bars(p.right);
     case 'flow':
-      return (p.steps ?? []).map((st: any) => `<div class="card"><h3>${esc(st.head)}</h3>${para(st.body)}</div>`).join('')
-        + (p.chart ? `<div class="cap">${esc(p.chart.caption)}</div>`
-          + (p.chart.points ?? []).map((pt: any) =>
-            `<div class="row"><span>${esc(pt.label)}</span><span>${esc(pt.value)}${esc(p.chart.unit ?? '')}</span></div>`).join('') : '')
-        + (p.notes ?? []).map(para).join('');
+      return (p.steps ?? []).map((st: any) =>
+        `<div class="card"><h3>${esc(st.head)}</h3>${para(st.body)}</div>`).join('');
     case 'figures':
       return (p.items ?? []).map((it: any) =>
         `<div class="card"><div class="eyebrow">${esc(it.tag)}</div><h3>${esc(it.head)}</h3>`
-        + `<div class="figure sm">${esc(it.figure)}</div>${para(it.body)}</div>`).join('')
-        + (p.notes ?? []).map(para).join('');
+        + `<div class="figure sm">${esc(it.figure)}</div>${para(it.body)}</div>`).join('');
     case 'panels':
       return (p.panels ?? []).map((pn: any) =>
         `<div class="card"><div class="eyebrow">${esc(pn.heading)}</div>`
@@ -90,41 +104,70 @@ export function exportHtml(deck: Deck): string {
     const p = s.props;
     const kicker = p.eyebrow ?? p.kicker;
     const heading = p.title ?? '';
+    const multi = s.type === 'cards' || s.type === 'barsPair'
+      || s.type === 'figures' || s.type === 'panels' || s.type === 'flow';
     return `<section style="background:${t.bg};color:${t.fg}">
 ${kicker ? `  <div class="eyebrow" style="color:${t.mut}">${esc(kicker)}</div>` : ''}
 ${heading ? `  <h2>${esc(heading)}</h2>` : ''}
-  ${body(s)}
+  <div class="sheet">${multi ? `<div class="cols">${body(s)}</div>` : body(s)}${after(s)}</div>
 ${p.source ? `  <div class="src" style="color:${t.mut}">${esc(p.source)}${p.asOf ? ` · as of ${esc(p.asOf)}` : ''}</div>` : ''}
 ${s.conflict ? `  <div class="flag">Flagged by an agent: ${esc(s.conflict.why)}</div>` : ''}
 </section>`;
   }).join('\n\n');
 
+  const wrapped = sections;
   return `<!doctype html>
 <html lang="en">
 <head>
 <meta charset="utf-8">
 <title>${esc(deck.title)}</title>
 <style>
-  body{margin:0;font-family:'IBM Plex Sans',system-ui,sans-serif;line-height:1.5}
-  section{padding:88px 110px;min-height:70vh;box-sizing:border-box}
-  .eyebrow{font-size:13px;font-weight:600;letter-spacing:.16em;text-transform:uppercase;margin-bottom:18px}
-  h2{font-size:42px;line-height:1.15;letter-spacing:-.02em;margin:0 0 28px;max-width:22em}
-  h3{font-size:22px;margin:0 0 8px}
-  p{font-size:17px;max-width:46em;margin:0 0 14px}
-  .figure{font-size:120px;font-weight:600;letter-spacing:-.04em;line-height:1;margin:0 0 24px}
-  .figure.sm{font-size:56px;margin:8px 0 12px}
-  .card{margin:0 0 28px;max-width:46em}
-  .grp{margin:0 0 36px;max-width:38em}
-  .cap{font-size:15px;font-weight:600;margin-bottom:12px}
-  .row{display:flex;justify-content:space-between;gap:24px;padding:7px 0;border-bottom:1px solid rgba(128,128,128,.22);font-size:16px}
-  .src{font-size:12px;letter-spacing:.06em;text-transform:uppercase;margin-top:40px}
-  .flag{margin-top:20px;padding:12px 16px;border-left:3px solid #E8A33D;background:rgba(232,163,61,.12);font-size:14px}
+  :root{color-scheme:light}
+  body{margin:0;background:#E9EAEF;line-height:1.5;
+    font-family:'IBM Plex Sans',system-ui,-apple-system,sans-serif}
+  /* One 16:9 artboard per slide, so the file reads as the deck it came from
+     rather than as a long scrolling document. */
+  .deck{max-width:1180px;margin:0 auto;padding:34px 20px;display:flex;
+    flex-direction:column;gap:26px}
+  /* The whole slide is one centred block; the source line alone sits low. */
+  section{position:relative;aspect-ratio:16/9;padding:5.2% 6.4% 4.4%;box-sizing:border-box;
+    display:flex;flex-direction:column;justify-content:center;gap:1.6%;
+    border-radius:14px;overflow:hidden;
+    box-shadow:0 2px 8px rgba(11,11,18,.09),0 18px 50px rgba(11,11,18,.11)}
+  .sheet{display:flex;flex-direction:column;gap:2%;min-height:0;margin-top:1.4%}
+  .eyebrow{font-size:1.28vw;font-weight:600;letter-spacing:.15em;text-transform:uppercase;
+    margin:0 0 .3em}
+  h2{font-size:3.1vw;line-height:1.16;letter-spacing:-.022em;margin:0;max-width:22em}
+  h3{font-size:1.9vw;line-height:1.25;margin:0 0 .4em;letter-spacing:-.012em}
+  p{font-size:1.5vw;font-weight:300;line-height:1.5;max-width:44em;margin:0 0 .6em}
+  .figure{font-size:7.4vw;font-weight:600;letter-spacing:-.045em;line-height:.95;margin:0}
+  .figure.sm{font-size:3.4vw;margin:.2em 0 .3em}
+  .cols{display:flex;gap:3.4%;align-items:flex-start}
+  .cols>*{flex:1;min-width:0}
+  .card{margin:0}
+  .grp{margin:0}
+  .cap{font-size:1.5vw;font-weight:500;margin-bottom:.7em;opacity:.72}
+  .row{display:flex;justify-content:space-between;gap:1.6em;padding:.45em 0;
+    border-bottom:1px solid rgba(128,128,128,.24);font-size:1.5vw}
+  .src{font-size:1.15vw;letter-spacing:.05em;text-transform:uppercase;
+    position:absolute;left:6.4%;right:6.4%;bottom:4.4%;opacity:.7}
+  .footnote{font-size:1.5vw;font-weight:300;line-height:1.5;max-width:56em;opacity:.78}
+  .flag{margin-top:1em;padding:.7em 1em;border-left:3px solid #E8A33D;
+    background:rgba(232,163,61,.14);font-size:1.3vw}
+  @media (max-width:820px){
+    .eyebrow,.src{font-size:11px}
+    h2{font-size:26px} h3{font-size:16px} p,.row,.cap{font-size:13px}
+    .figure{font-size:62px} .figure.sm{font-size:28px}
+    .cols{flex-direction:column;gap:1.2em}
+  }
 </style>
 </head>
 <body>
+<div class="deck">
 
-${sections}
+${wrapped}
 
+</div>
 </body>
 </html>
 `;

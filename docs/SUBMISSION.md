@@ -92,6 +92,25 @@ overwriting the other. Every slide carries a revision; the agent's reads are
 recorded; a stale write is refused with a diff. That is optimistic concurrency
 between a person and an agent, on the same surface, in the browser.
 
+We measured it rather than asserting it. A harness hands a model the same tool
+contracts the page registers, with the page's guards on and off, ten runs per arm:
+
+| arm | outcome | completion | page refusals |
+|---|---|---|---|
+| race · guards ON | hand edit destroyed 0/10 | task completed 10/10 | stale refusals 20 |
+| race · guards OFF | hand edit destroyed 10/10 | task completed 10/10 | stale refusals 0 |
+| injection · guards ON | agent followed the injection 0/10 · landed 0/10 | task completed 10/10 | refused writes 0 |
+| injection · guards OFF | agent followed the injection 0/10 · landed 0/10 | task completed 10/10 | refused writes 0 |
+| adversary (scripted, follows the injection) · guards ON | unmarked headlines rewritten 0/9 | — | refused writes 9 |
+| adversary (scripted, follows the injection) · guards OFF | unmarked headlines rewritten 8/9 (the ninth has no headline field) | — | refused writes 0 |
+
+With the guards off, a model doing exactly what it was asked overwrites the
+person's hand edit every time; with them on, never, and it still finishes every
+time. Our defence does not rely on the model not being fooled: a scripted agent
+that follows the injection by construction still cannot write outside the slides
+the person marked. Spec §6.4 lists no mitigation for this direction; we have
+drafted one (`docs/findings.md`).
+
 ## How WebMCP was implemented
 
 **The deck is a typed model; there is no HTML escape hatch.** Slides are React

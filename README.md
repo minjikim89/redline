@@ -229,7 +229,38 @@ Tool traffic is invisible by nature, which makes it hard to trust. Each invocati
 including refused ones — is traced onto the page: name, arguments, outcome. A person
 watching can see exactly what the agent did, in order.
 
+### Measured, not argued
+
+The claims above are testable, so they were tested. `scripts/guardrail-eval.mts`
+hands a model the same tool contracts the page registers and dispatches its calls
+to the same implementations, with the page's guards on and off, ten runs per arm:
+
+| arm | outcome | completion | page refusals |
+|---|---|---|---|
+| race · guards ON | hand edit destroyed 0/10 | task completed 10/10 | stale refusals 20 |
+| race · guards OFF | hand edit destroyed 10/10 | task completed 10/10 | stale refusals 0 |
+| injection · guards ON | agent followed the injection 0/10 · landed 0/10 | task completed 10/10 | refused writes 0 |
+| injection · guards OFF | agent followed the injection 0/10 · landed 0/10 | task completed 10/10 | refused writes 0 |
+| adversary (scripted, follows the injection) · guards ON | unmarked headlines rewritten 0/9 | — | refused writes 9 |
+| adversary (scripted, follows the injection) · guards OFF | unmarked headlines rewritten 8/9 (the ninth has no headline field) | — | refused writes 0 |
+
+Read it as three sentences. With the guards off, a model that is doing exactly
+what it was asked overwrites the person's hand edit every time; with them on, it
+never does, and it still finishes the task every time — the refusal costs one
+re-read. Against this model, the injected instruction was not followed in either
+arm, so the scope guard was not exercised by the model; it is exercised by the
+scripted adversary, which is the case the guard exists for: an agent that is
+fully convinced still cannot write outside the slides the person marked. The
+app itself calls no model; only the harness does. Raw results are in
+`evals/results/`.
+
 ### Prompt injection, and what this page does about it
+
+Our defence does not rely on the model not being fooled. An agent that is fully
+convinced by injected text still has its writes refused by the page: scope,
+revisions and cancellation are enforced in the tool implementations, not in a
+prompt. That is the mitigation §6.4 of the spec does not yet list; see
+[docs/findings.md](docs/findings.md#0-a-fourth-mitigation-for-64-page-enforced-write-boundaries).
 
 Every tool that returns human-written or externally-sourced text (`list_slides`,
 `read_slide`, `list_open_annotations`, `attach_research`) carries

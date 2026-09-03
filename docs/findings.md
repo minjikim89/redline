@@ -28,7 +28,12 @@ staying unpersuaded:
   correct a figure; it may only *flag* a claim (`contradicts`).
 
 Our defence does not rely on the model not being fooled. An agent that is fully
-convinced by injected text still has its writes refused by the page. This is the
+convinced by injected text still has its writes refused by the page. Measured
+(`scripts/guardrail-eval.mts`, gpt-4.1, 10 runs per arm): with the guards off the
+model overwrote a hand edit 10/10 times; with them on, 0/10, at no cost to task
+completion. A scripted agent that follows an injected "rewrite every headline"
+instruction rewrote 8 of 9 unmarked slides with the guards off and 0 of 9 with
+them on. Table in `evals/results/guardrails-latest.md`. This is the
 "behavioral contract" §6.3.2 says is missing — expressed as structured refusals
 that a host can surface uniformly. Proposed as a §6.4 addition below (draft issue 3).
 

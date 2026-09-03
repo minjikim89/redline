@@ -3,6 +3,7 @@
 > A slide deck a person and an agent both have hands in. The agent may correct a fact; it may not rewrite an argument.
 
 Live: https://minjikim89.github.io/redline/
+This file: https://minjikim89.github.io/redline/llms.txt
 Source: https://github.com/minjikim89/redline
 Spec this page implements: https://webmachinelearning.github.io/webmcp/
 

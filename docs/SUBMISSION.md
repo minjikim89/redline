@@ -187,5 +187,6 @@ call takes the browser's own dispatch path; it is labelled as scripted. `npm tes
 evals` and `e2e/scenarios.mjs` are described in the README.
 
 **Measured:** Lighthouse 13.4.1 *Agentic Browsing* category 1.00 on the live URL
-(registered tools 11, schema validity pass, agent accessibility tree pass, CLS 0,
-`/llms.txt` served). Chrome's evals smoke suite: 7/7 steps, every call `ok:true`.
+(registered tools 11, schema validity pass, agent accessibility tree pass, CLS 0).
+An agent manual is served at `/redline/llms.txt`. Chrome's evals smoke suite: 7/7
+steps, every call `ok:true`. Unit tests 156; CDP browser checks pass per phase.

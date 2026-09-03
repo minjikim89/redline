@@ -31,7 +31,7 @@ INVALID_INPUT  every call is validated in code — the browser does not check
                inputSchema (spec issue #92).
 contradicts    a verified figure that undercuts a claim flags it; the claim is not rewritten.
 ■ stop sweep   a batch edit is stoppable from the page, and the agent still learns what landed.
-Lighthouse Agentic Browsing 1.00 · 156 unit tests · CDP browser checks · evals smoke 7/7.
+Lighthouse Agentic Browsing 1.00 · 156 unit tests · CDP browser checks · evals smoke 7/7 · llms.txt.
 Created during the submission period; full history from 2026-08-31.
 ```
 
@@ -322,8 +322,10 @@ npm run check:data # refuses to ship unsourced figures
 ```
 
 Lighthouse 13.4.1's *Agentic Browsing* category scores the live URL 1.00 (registered
-tools, schema validity, agent accessibility tree, CLS 0, `/llms.txt`). `/llms.txt`
-is written for an agent meeting the tools for the first time, not for the audit.
+tools, schema validity, agent accessibility tree, CLS 0). An `llms.txt` is served at
+`/redline/llms.txt`, written for an agent meeting the tools for the first time; the
+audit looks at the origin root, which a GitHub Pages project site does not own, so it
+reports that check as not applicable.
 
 Browser checks (`e2e/scenarios.mjs`) drive a real Chrome over CDP — see the file
 header for the two commands to start it.

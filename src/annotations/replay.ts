@@ -14,10 +14,15 @@ import * as store from './store';
 let inputMode: 'string' | 'object' | null = null;
 
 export async function invoke(name: string, input: any, signal?: AbortSignal): Promise<any> {
-  if (!webmcpSupported()) return callable[name](input, { signal });
-  const mc = document.modelContext!;
-  const tool = (await mc.getTools()).find(t => t.name === name);
-  if (!tool) return callable[name](input, { signal });
+  const direct = () => callable[name](input, { signal });
+  // The ChatGPT browser documents registerTool; getTools/executeTool are the
+  // spec's in-page-agent surface and may be absent there. Feature-detect the
+  // pair, and fall back to the implementations if discovery itself fails.
+  const mc = document.modelContext;
+  if (!webmcpSupported() || typeof mc?.getTools !== 'function' || typeof mc.executeTool !== 'function') return direct();
+  let tool: RegisteredTool | undefined;
+  try { tool = (await mc.getTools()).find(t => t.name === name); } catch { return direct(); }
+  if (!tool) return direct();
   const call = async (mode: 'string' | 'object') => {
     const out = await mc.executeTool(tool, mode === 'string' ? JSON.stringify(input) : input, { signal });
     return typeof out === 'string' ? JSON.parse(out) : out;

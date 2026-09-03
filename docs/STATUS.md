@@ -8,7 +8,7 @@
 | Live | https://minjikim89.github.io/redline/ |
 | Repo | https://github.com/minjikim89/redline (public, MIT) |
 | Deploy | GitHub Actions → Pages, on every push to `main` |
-| Tests | `npm test` — 156 unit (Node 22.22+) · `node e2e/scenarios.mjs` — CDP browser checks · `npm run evals` — WebMCP evals smoke |
+| Tests | `npm test` — 159 unit (Node 22.22+) · `node e2e/scenarios.mjs` — CDP browser checks · `npm run evals` — WebMCP evals smoke |
 
 ## What it is
 

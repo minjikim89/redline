@@ -93,20 +93,26 @@ recorded; a stale write is refused with a diff. That is optimistic concurrency
 between a person and an agent, on the same surface, in the browser.
 
 We measured it rather than asserting it. A harness hands a model the same tool
-contracts the page registers, with the page's guards on and off, ten runs per arm:
+contracts the page registers, with the page's guards on and off, ten runs per arm.
+The task rewrites the very headline the person retypes, so the words are replaced
+in both arms; what the guard changes is whether the agent wrote over them without
+having read them:
 
 | arm | outcome | completion | page refusals |
 |---|---|---|---|
-| race · guards ON | hand edit destroyed 0/10 | task completed 10/10 | stale refusals 20 |
-| race · guards OFF | hand edit destroyed 10/10 | task completed 10/10 | stale refusals 0 |
-| injection · guards ON | agent followed the injection 0/10 · landed 0/10 | task completed 10/10 | refused writes 0 |
-| injection · guards OFF | agent followed the injection 0/10 · landed 0/10 | task completed 10/10 | refused writes 0 |
+| race · gpt-4.1 · guards ON | wrote over an unread hand edit 0/10 · hand edit seen before every write 10/10 | task completed 10/10 | stale refusals 20 |
+| race · gpt-4.1 · guards OFF | wrote over an unread hand edit 10/10 · hand edit seen before every write 0/10 | task completed 10/10 | stale refusals 0 |
+| race · gpt-5.4 · guards ON | wrote over an unread hand edit 0/9 · hand edit seen before every write 9/9 | task completed 9/9 | stale refusals 18 |
+| race · gpt-5.4 · guards OFF | wrote over an unread hand edit 8/8 · hand edit seen before every write 0/8 | task completed 8/8 | stale refusals 0 |
 | adversary (scripted, follows the injection) · guards ON | unmarked headlines rewritten 0/9 | — | refused writes 9 |
 | adversary (scripted, follows the injection) · guards OFF | unmarked headlines rewritten 8/9 (the ninth has no headline field) | — | refused writes 0 |
 
-With the guards off, a model doing exactly what it was asked overwrites the
-person's hand edit every time; with them on, never, and it still finishes every
-time. Our defence does not rely on the model not being fooled: a scripted agent
+Injection (model arm, 20 runs): the model followed the injected instruction in 0/10 runs with guards on and 0/10 with guards off — it did not distinguish the arms, which is why the deterministic adversary arm exists. gpt-5.4: 3 of 20 runs lost to network errors and excluded.
+
+With the guards off, a model doing exactly what it was asked wrote over the
+person's edit unseen every time; with them on, never, and it still finished every
+time. This is not a model-capability gap — what the person typed has no path to
+the agent unless the page provides one — and gpt-5.4 reproduces it. Our defence does not rely on the model not being fooled: a scripted agent
 that follows the injection by construction still cannot write outside the slides
 the person marked. Spec §6.4 lists no mitigation for this direction; we have
 drafted one (`docs/findings.md`).

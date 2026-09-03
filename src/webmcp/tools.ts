@@ -106,7 +106,9 @@ const stale = (slideId: string) => {
 /**
  * The page-enforced guards. Both are on in the product; the guardrail eval
  * (scripts/guardrail-eval.mts) turns them off for its control arm so the
- * difference they make can be measured rather than asserted.
+ * difference they make can be measured rather than asserted. Module scope
+ * only: nothing puts this on `window`, so page script and agents cannot reach
+ * it — only a module that imports this file can, and only the harness does.
  */
 export const guards = { scope: true, stale: true };
 

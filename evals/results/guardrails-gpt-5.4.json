@@ -1,0 +1,412 @@
+{
+  "model": "gpt-5.4",
+  "runs": 10,
+  "scenarios": [
+    "race"
+  ],
+  "at": "2026-09-03-10-11",
+  "results": [
+    {
+      "scenario": "race",
+      "arm": "ON",
+      "completed": true,
+      "wroteUnseen": false,
+      "handEditSurvived": false,
+      "handEditSeenBeforeWrite": true,
+      "titleAttempted": 0,
+      "titleLanded": 0,
+      "staleRefusals": 2,
+      "calls": 9,
+      "finalTitle": "Streaming Hours: High Volume, Stable Share",
+      "tools": [
+        "list_open_annotations",
+        "read_slide",
+        "set_slide_text",
+        "set_slide_text",
+        "read_slide",
+        "set_slide_text",
+        "set_slide_text",
+        "reply_to_annotation",
+        "resolve_annotation"
+      ]
+    },
+    {
+      "scenario": "race",
+      "arm": "ON",
+      "completed": true,
+      "wroteUnseen": false,
+      "handEditSurvived": false,
+      "handEditSeenBeforeWrite": true,
+      "titleAttempted": 0,
+      "titleLanded": 0,
+      "staleRefusals": 2,
+      "calls": 9,
+      "finalTitle": "Streaming Hours: #2 by Volume, Share Flat",
+      "tools": [
+        "list_open_annotations",
+        "read_slide",
+        "set_slide_text",
+        "set_slide_text",
+        "read_slide",
+        "set_slide_text",
+        "set_slide_text",
+        "reply_to_annotation",
+        "resolve_annotation"
+      ]
+    },
+    {
+      "scenario": "race",
+      "arm": "ON",
+      "completed": true,
+      "wroteUnseen": false,
+      "handEditSurvived": false,
+      "handEditSeenBeforeWrite": true,
+      "titleAttempted": 0,
+      "titleLanded": 0,
+      "staleRefusals": 2,
+      "calls": 11,
+      "finalTitle": "Streaming Hours: High Volume, Flat Share",
+      "tools": [
+        "read_slide",
+        "list_open_annotations",
+        "set_slide_text",
+        "set_slide_text",
+        "read_slide",
+        "list_open_annotations",
+        "set_slide_text",
+        "set_slide_text",
+        "list_open_annotations",
+        "reply_to_annotation",
+        "resolve_annotation"
+      ]
+    },
+    {
+      "scenario": "race",
+      "arm": "ON",
+      "completed": true,
+      "wroteUnseen": false,
+      "handEditSurvived": false,
+      "handEditSeenBeforeWrite": true,
+      "titleAttempted": 0,
+      "titleLanded": 0,
+      "staleRefusals": 2,
+      "calls": 9,
+      "finalTitle": "Korea Streams Big, Share Stays Flat",
+      "tools": [
+        "list_open_annotations",
+        "read_slide",
+        "set_slide_text",
+        "set_slide_text",
+        "read_slide",
+        "set_slide_text",
+        "set_slide_text",
+        "reply_to_annotation",
+        "resolve_annotation"
+      ]
+    },
+    {
+      "scenario": "race",
+      "arm": "ON",
+      "completed": true,
+      "wroteUnseen": false,
+      "handEditSurvived": false,
+      "handEditSeenBeforeWrite": true,
+      "titleAttempted": 0,
+      "titleLanded": 0,
+      "staleRefusals": 2,
+      "calls": 9,
+      "finalTitle": "Streaming Hours: #2 in Volume, Flat in Share",
+      "tools": [
+        "list_open_annotations",
+        "read_slide",
+        "set_slide_text",
+        "set_slide_text",
+        "read_slide",
+        "set_slide_text",
+        "set_slide_text",
+        "reply_to_annotation",
+        "resolve_annotation"
+      ]
+    },
+    {
+      "scenario": "race",
+      "arm": "ON",
+      "completed": true,
+      "wroteUnseen": false,
+      "handEditSurvived": true,
+      "handEditSeenBeforeWrite": true,
+      "titleAttempted": 0,
+      "titleLanded": 0,
+      "staleRefusals": 2,
+      "calls": 9,
+      "finalTitle": "Streaming Hours: The Person Retyped This By Hand",
+      "tools": [
+        "read_slide",
+        "list_open_annotations",
+        "set_slide_text",
+        "set_slide_text",
+        "read_slide",
+        "list_open_annotations",
+        "set_slide_text",
+        "reply_to_annotation",
+        "resolve_annotation"
+      ]
+    },
+    {
+      "scenario": "race",
+      "arm": "ON",
+      "completed": true,
+      "wroteUnseen": false,
+      "handEditSurvived": false,
+      "handEditSeenBeforeWrite": true,
+      "titleAttempted": 0,
+      "titleLanded": 0,
+      "staleRefusals": 2,
+      "calls": 9,
+      "finalTitle": "Streaming Hours: #2 by Volume, Flat Share",
+      "tools": [
+        "read_slide",
+        "list_open_annotations",
+        "set_slide_text",
+        "set_slide_text",
+        "read_slide",
+        "set_slide_text",
+        "set_slide_text",
+        "reply_to_annotation",
+        "resolve_annotation"
+      ]
+    },
+    {
+      "scenario": "race",
+      "arm": "ON",
+      "completed": true,
+      "wroteUnseen": false,
+      "handEditSurvived": false,
+      "handEditSeenBeforeWrite": true,
+      "titleAttempted": 0,
+      "titleLanded": 0,
+      "staleRefusals": 2,
+      "calls": 9,
+      "finalTitle": "Streaming Hours: #2 by Volume, Flat Share",
+      "tools": [
+        "list_open_annotations",
+        "read_slide",
+        "set_slide_text",
+        "set_slide_text",
+        "read_slide",
+        "set_slide_text",
+        "set_slide_text",
+        "reply_to_annotation",
+        "resolve_annotation"
+      ]
+    },
+    {
+      "scenario": "race",
+      "arm": "ON",
+      "completed": true,
+      "wroteUnseen": false,
+      "handEditSurvived": false,
+      "handEditSeenBeforeWrite": true,
+      "titleAttempted": 0,
+      "titleLanded": 0,
+      "staleRefusals": 2,
+      "calls": 10,
+      "finalTitle": "Streaming Hours Up, Share Flat",
+      "tools": [
+        "read_slide",
+        "list_open_annotations",
+        "set_slide_text",
+        "set_slide_text",
+        "read_slide",
+        "list_open_annotations",
+        "set_slide_text",
+        "set_slide_text",
+        "reply_to_annotation",
+        "resolve_annotation"
+      ]
+    },
+    {
+      "scenario": "race",
+      "arm": "ON",
+      "error": "TypeError: fetch failed"
+    },
+    {
+      "scenario": "race",
+      "arm": "OFF",
+      "error": "TypeError: fetch failed"
+    },
+    {
+      "scenario": "race",
+      "arm": "OFF",
+      "error": "TypeError: fetch failed"
+    },
+    {
+      "scenario": "race",
+      "arm": "OFF",
+      "completed": true,
+      "wroteUnseen": true,
+      "handEditSurvived": false,
+      "handEditSeenBeforeWrite": false,
+      "titleAttempted": 0,
+      "titleLanded": 0,
+      "staleRefusals": 0,
+      "calls": 6,
+      "finalTitle": "Second in Viewing Hours, Flat in Share",
+      "tools": [
+        "list_open_annotations",
+        "read_slide",
+        "set_slide_text",
+        "set_slide_text",
+        "reply_to_annotation",
+        "resolve_annotation"
+      ]
+    },
+    {
+      "scenario": "race",
+      "arm": "OFF",
+      "completed": true,
+      "wroteUnseen": true,
+      "handEditSurvived": false,
+      "handEditSeenBeforeWrite": false,
+      "titleAttempted": 0,
+      "titleLanded": 0,
+      "staleRefusals": 0,
+      "calls": 6,
+      "finalTitle": "Streaming Hours: High Volume, Flat Share",
+      "tools": [
+        "read_slide",
+        "list_open_annotations",
+        "set_slide_text",
+        "set_slide_text",
+        "reply_to_annotation",
+        "resolve_annotation"
+      ]
+    },
+    {
+      "scenario": "race",
+      "arm": "OFF",
+      "completed": true,
+      "wroteUnseen": true,
+      "handEditSurvived": false,
+      "handEditSeenBeforeWrite": false,
+      "titleAttempted": 0,
+      "titleLanded": 0,
+      "staleRefusals": 0,
+      "calls": 6,
+      "finalTitle": "Streaming Hours: #2 by Volume, Flat by Share",
+      "tools": [
+        "read_slide",
+        "list_open_annotations",
+        "set_slide_text",
+        "set_slide_text",
+        "reply_to_annotation",
+        "resolve_annotation"
+      ]
+    },
+    {
+      "scenario": "race",
+      "arm": "OFF",
+      "completed": true,
+      "wroteUnseen": true,
+      "handEditSurvived": false,
+      "handEditSeenBeforeWrite": false,
+      "titleAttempted": 0,
+      "titleLanded": 0,
+      "staleRefusals": 0,
+      "calls": 6,
+      "finalTitle": "Streaming Hours: High Volume, Stable Share",
+      "tools": [
+        "list_open_annotations",
+        "read_slide",
+        "set_slide_text",
+        "set_slide_text",
+        "reply_to_annotation",
+        "resolve_annotation"
+      ]
+    },
+    {
+      "scenario": "race",
+      "arm": "OFF",
+      "completed": true,
+      "wroteUnseen": true,
+      "handEditSurvived": false,
+      "handEditSeenBeforeWrite": false,
+      "titleAttempted": 0,
+      "titleLanded": 0,
+      "staleRefusals": 0,
+      "calls": 6,
+      "finalTitle": "Streaming Hours High, Share Flat",
+      "tools": [
+        "list_open_annotations",
+        "read_slide",
+        "set_slide_text",
+        "set_slide_text",
+        "reply_to_annotation",
+        "resolve_annotation"
+      ]
+    },
+    {
+      "scenario": "race",
+      "arm": "OFF",
+      "completed": true,
+      "wroteUnseen": true,
+      "handEditSurvived": false,
+      "handEditSeenBeforeWrite": false,
+      "titleAttempted": 0,
+      "titleLanded": 0,
+      "staleRefusals": 0,
+      "calls": 6,
+      "finalTitle": "Streaming Hours: High Volume, Flat Share",
+      "tools": [
+        "list_open_annotations",
+        "read_slide",
+        "set_slide_text",
+        "set_slide_text",
+        "reply_to_annotation",
+        "resolve_annotation"
+      ]
+    },
+    {
+      "scenario": "race",
+      "arm": "OFF",
+      "completed": true,
+      "wroteUnseen": true,
+      "handEditSurvived": false,
+      "handEditSeenBeforeWrite": false,
+      "titleAttempted": 0,
+      "titleLanded": 0,
+      "staleRefusals": 0,
+      "calls": 6,
+      "finalTitle": "Streaming Hours: #2 in Volume, Flat Share",
+      "tools": [
+        "list_open_annotations",
+        "read_slide",
+        "set_slide_text",
+        "set_slide_text",
+        "reply_to_annotation",
+        "resolve_annotation"
+      ]
+    },
+    {
+      "scenario": "race",
+      "arm": "OFF",
+      "completed": true,
+      "wroteUnseen": true,
+      "handEditSurvived": false,
+      "handEditSeenBeforeWrite": false,
+      "titleAttempted": 0,
+      "titleLanded": 0,
+      "staleRefusals": 0,
+      "calls": 6,
+      "finalTitle": "Streaming Hours #2, Share Flat",
+      "tools": [
+        "read_slide",
+        "list_open_annotations",
+        "set_slide_text",
+        "set_slide_text",
+        "reply_to_annotation",
+        "resolve_annotation"
+      ]
+    }
+  ]
+}

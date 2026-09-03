@@ -1,5 +1,42 @@
-import { callable } from '../webmcp/tools';
+import { callable, webmcpSupported } from '../webmcp/tools';
 import * as store from './store';
+
+/**
+ * Where the browser exposes WebMCP, the pass is an in-page agent in the
+ * spec's sense: it discovers the tools with getTools() and calls them with
+ * executeTool(), so every call takes the browser's own serialisation and
+ * dispatch path — the same one a connected agent's calls take. Without
+ * WebMCP it falls back to the tool implementations directly.
+ *
+ * Chrome 152 takes executeTool's input as a JSON string; the spec says an
+ * object. The first call finds out which this browser wants and remembers.
+ */
+let inputMode: 'string' | 'object' | null = null;
+
+export async function invoke(name: string, input: any, signal?: AbortSignal): Promise<any> {
+  if (!webmcpSupported()) return callable[name](input, { signal });
+  const mc = document.modelContext!;
+  const tool = (await mc.getTools()).find(t => t.name === name);
+  if (!tool) return callable[name](input, { signal });
+  const call = async (mode: 'string' | 'object') => {
+    const out = await mc.executeTool(tool, mode === 'string' ? JSON.stringify(input) : input, { signal });
+    return typeof out === 'string' ? JSON.parse(out) : out;
+  };
+  if (inputMode) return call(inputMode);
+  try {
+    const r = await call('string');
+    // A spec-conformant browser would have serialised our string as a JSON
+    // string literal, and the tool's validator would say so.
+    if (r?.ok === false && r.error?.code === 'INVALID_INPUT'
+      && String(r.error.problems?.[0]?.message ?? '').startsWith('expected object')) {
+      inputMode = 'object'; return call('object');
+    }
+    inputMode = 'string'; return r;
+  } catch (e) {
+    if (signal?.aborted) throw e;
+    inputMode = 'object'; return call('object');
+  }
+}
 
 /**
  * A scripted pass over the open queue.
@@ -23,26 +60,26 @@ export function buildScript(): Step[] {
 
   steps.push({
     say: 'reading the open notes',
-    run: () => callable.list_open_annotations({}),
+    run: () => invoke('list_open_annotations', {}),
   });
 
   for (const a of open) {
     steps.push({
       say: `looking at ${a.slideId}`, slideId: a.slideId,
-      run: () => callable.read_slide({ slideId: a.slideId }),
+      run: () => invoke('read_slide', { slideId: a.slideId }),
     });
 
     if (a.kind === 'visualize') {
       steps.push({
         say: 're-forming the chart', slideId: a.slideId,
-        run: () => callable.set_chart_form({
+        run: () => invoke('set_chart_form', {
           slideId: a.slideId, chartForm: 'cards',
           rationale: 'Three separate export lines, not parts of one whole.',
         }),
       });
       steps.push({
         say: 'explaining the change', slideId: a.slideId,
-        run: () => callable.reply_to_annotation({
+        run: () => invoke('reply_to_annotation', {
           annotationId: a.id,
           body: 'Switched to the card treatment. A pie would claim these three sum to a meaningful total.',
         }),
@@ -52,7 +89,7 @@ export function buildScript(): Step[] {
     if (a.kind === 'research') {
       steps.push({
         say: 'attaching a sourced figure', slideId: a.slideId,
-        run: () => callable.attach_research({
+        run: () => invoke('attach_research', {
           slideId: a.slideId,
           source: 'HYBE FY2025 annual report (DART)',
           asOf: 'FY2025',
@@ -70,7 +107,7 @@ export function buildScript(): Step[] {
       // is an argument, and stays exactly as flagged — that call is human.
       steps.push({
         say: 'correcting the stale panel', slideId: a.slideId,
-        run: () => callable.edit_items({
+        run: () => invoke('edit_items', {
           slideId: a.slideId, list: 'panels', op: 'replace', index: 1,
           item: {
             heading: 'Commerce · Weverse Company (FY2025)',
@@ -86,7 +123,7 @@ export function buildScript(): Step[] {
       });
       steps.push({
         say: 'noting what it could not verify', slideId: a.slideId,
-        run: () => callable.reply_to_annotation({
+        run: () => invoke('reply_to_annotation', {
           annotationId: a.id,
           body: 'Panel updated to FY2025 with the filing as source, and the headline is flagged: the loss it rests on has reversed. Rewriting an argument is your call, not mine.',
         }),
@@ -96,18 +133,18 @@ export function buildScript(): Step[] {
     if (a.kind === 'fix') {
       steps.push({
         say: 'sweeping the deck — you can stop this', slideId: a.slideId,
-        run: (signal?: AbortSignal) => callable.unify_across_slides(
+        run: (signal?: AbortSignal) => invoke('unify_across_slides',
           {
             field: 'source',
             slideIds: ['s04', 's05', 's07', 's08', 's10'],
             template: 'Source: {value}',
           },
-          { signal },
+          signal,
         ),
       }) as any;
       steps.push({
         say: 'explaining the convention', slideId: a.slideId,
-        run: () => callable.reply_to_annotation({
+        run: () => invoke('reply_to_annotation', {
           annotationId: a.id,
           body: 'Applied the slide 7 convention across the chart slides.',
         }),
@@ -116,7 +153,7 @@ export function buildScript(): Step[] {
 
     steps.push({
       say: 'closing the note', slideId: a.slideId,
-      run: () => callable.resolve_annotation({ annotationId: a.id }),
+      run: () => invoke('resolve_annotation', { annotationId: a.id }),
     });
   }
 

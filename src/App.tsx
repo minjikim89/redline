@@ -8,7 +8,7 @@ import { exportHtml } from './deck/exportHtml';
 import { ARTBOARD } from './deck/theme';
 import { InkLayer, type Mode } from './annotations/InkLayer';
 import * as store from './annotations/store';
-import { advertisedTools, registerAll, syncConditionalTools, webmcpSupported } from './webmcp/tools';
+import { advertisedTools, liveTools, webmcpSupported } from './webmcp/tools';
 import { buildScript, runScript } from './annotations/replay';
 
 /** Outlines the region an agent flagged, inside the artboard so it scales with it. */
@@ -38,15 +38,13 @@ export default function App() {
   });
   const [mode, setMode] = useState<Mode>('edit');
   const [tools, setTools] = useState<string[]>([]);
-  const [supported, setSupported] = useState<boolean | null>(null);
+  const [supported] = useState<boolean | null>(() => webmcpSupported());
   const [fit, setFit] = useState(0.5);
   const [zoom, setZoom] = useState(1);
   const [insp, setInsp] = useState(false);
-  const [entered, setEntered] = useState(
-    () => new URLSearchParams(location.search).has('deck')
-      || new URLSearchParams(location.search).has('replay')
-      || new URLSearchParams(location.search).has('slide'),
-  );
+  // Whether a deck is on screen lives in the store, because the tool
+  // registration follows it: no review tools until there is a deck to review.
+  const entered = s.opened;
   const [tick, setTick] = useState(0);
   const [saying, setSaying] = useState<string | null>(null);
   const [confirmClear, setConfirmClear] = useState(false);
@@ -85,6 +83,9 @@ export default function App() {
     // then lives on the 0.5 fallback scale forever.
   }, [insp, entered]);
 
+  // The store's opened flag is set by the entry screen. On a deep link it is
+  // already true at load, so the deck renders before any click.
+
   useEffect(() => {
     try { localStorage.setItem('redline.view.v1', String(idx)); } catch { /* fine */ }
   }, [idx]);
@@ -105,8 +106,16 @@ export default function App() {
     return () => el.removeEventListener('wheel', onWheel);
   }, []);
 
-  // main.tsx already registered; this only reads back what is live.
-  useEffect(() => { registerAll().then(r => { setSupported(r.supported); setTools(r.tools); }); }, []);
+  // main.tsx owns registration and keeps it in step with the store. This only
+  // reads back what the browser exposes, and re-reads whenever it changes —
+  // `toolchange` is the spec's own signal for that.
+  useEffect(() => {
+    if (!supported) return;
+    const refresh = () => { liveTools().then(setTools).catch(() => { /* shown as-is */ }); };
+    refresh();
+    document.modelContext!.addEventListener('toolchange', refresh);
+    return () => document.modelContext!.removeEventListener('toolchange', refresh);
+  }, [supported]);
 
   // ?replay=1 starts the pass on load — used for recording and for checks.
   // The guard lives inside the timer, so StrictMode's mount/cleanup/mount
@@ -122,14 +131,6 @@ export default function App() {
     }, 700);
     return () => clearTimeout(t);
   }, []);
-
-  useEffect(() => {
-    syncConditionalTools().then(async () => {
-      if (!webmcpSupported()) return;
-      const t = await (document as any).modelContext.getTools();
-      setTools(t.map((x: any) => x.name));
-    });
-  }, [s.annotations]);
 
   /* A tool wrote somewhere: light the region up for a beat, so a sweep the
      person is watching reads as change landing rather than pixels flickering. */
@@ -178,7 +179,8 @@ export default function App() {
       if (el?.tagName === 'TEXTAREA' || el?.tagName === 'INPUT' || el?.isContentEditable) return;
       const mod = e.metaKey || e.ctrlKey;
       if (mod && e.key.toLowerCase() === 'z') {
-        e.preventDefault(); e.shiftKey ? store.redo() : store.undo();
+        e.preventDefault();
+        if (e.shiftKey) store.redo(); else store.undo();
       }
       if (mod) return;
       if (e.key === 'e' || e.key === 'E') setMode('edit');
@@ -232,13 +234,13 @@ export default function App() {
     if (foreign) { store.restore(before); setCurrent(clampSlideIndex(current, before.deck.slides.length)); }
   };
 
-  toggleReplayRef.current = toggleReplay;
+  useEffect(() => { toggleReplayRef.current = toggleReplay; });
 
   const marks = s.annotations.filter(a => a.slideId === slide.id);
   const openCount = s.annotations.filter(a => a.status === 'open').length;
   const W = ARTBOARD.w * scale, H = ARTBOARD.h * scale;
 
-  if (!entered) return <Start onEnter={() => setEntered(true)} />;
+  if (!entered) return <Start onEnter={() => store.setOpened(true)} />;
 
   return (
     <div className={insp ? 'app with-insp' : 'app'}>
@@ -323,11 +325,16 @@ export default function App() {
           {supported === false && (
             <>
               <div className="mcp-l">
-                Enable chrome://flags/#enable-webmcp-testing, or open in the ChatGPT
-                app browser. ▶ watch a pass runs the loop without an agent.
+                Enable chrome://flags/#enable-webmcp-testing (Chrome 149+), or open in
+                the ChatGPT desktop browser with GPT-5.6 Sol or Terra — Luna has WebMCP
+                off. ▶ watch a pass runs the loop without an agent.
               </div>
               <div className="mcp-ghost">
                 {advertisedTools.base.map(n => <code key={n}>{n}</code>)}
+              </div>
+              <div className="mcp-ghost-h">before a deck is open, only:</div>
+              <div className="mcp-ghost">
+                {advertisedTools.entry.map(n => <code key={n}>{n}</code>)}
               </div>
               <div className="mcp-ghost-h">while a note of that kind is open:</div>
               <div className="mcp-ghost">
@@ -454,10 +461,21 @@ export default function App() {
           <button className={replaying ? 'replay on' : 'replay'} onClick={toggleReplay}>
             {replaying ? '■ stop' : '▶ watch a pass'}
           </button>
+          {/* A batch tool is landing changes slide by slide. This is the person's
+              hand on it: pressing stop aborts the signal the tool is running on,
+              and the tool reports what landed and what did not. */}
+          {s.sweep && !replaying && (
+            <button className="stop-sweep" onClick={() => store.stopSweep()}
+              title="Stop the agent's sweep between slides">
+              ■ stop sweep
+            </button>
+          )}
           <span className="tb-sep" />
-          <span className={replaying ? 'tb-hint saying' : 'tb-hint'}>
+          <span className={replaying ? 'tb-hint saying' : s.sweep ? 'tb-hint sweeping' : 'tb-hint'}>
             {replaying
               ? `${saying} · scripted, running the real tools`
+              : s.sweep
+                ? `agent is sweeping the deck with ${s.sweep.tool} — you can stop it`
               : mode === 'edit'
                 ? 'Click any text to rewrite it. ⚙ props opens the rest of the slide.'
                 : mode === 'draw'

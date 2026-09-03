@@ -148,6 +148,10 @@ export function Start({ onEnter }: { onEnter: () => void }) {
           Redline doesn't generate slides. It's what happens after — where the model
           normally goes blind the moment you fix something by hand.
         </p>
+        <p className="st-env">
+          Agent-ready in the ChatGPT desktop browser with <b>GPT-5.6 Sol or Terra</b> (Luna
+          has WebMCP off), or in Chrome 149+ with <code>chrome://flags/#enable-webmcp-testing</code>.
+        </p>
       </div>
     </div>
   );

@@ -1,0 +1,61 @@
+# Redline
+
+> A slide deck a person and an agent both have hands in. The agent may correct a fact; it may not rewrite an argument.
+
+Live: https://minjikim89.github.io/redline/
+Source: https://github.com/minjikim89/redline
+Spec this page implements: https://webmachinelearning.github.io/webmcp/
+
+## What this page is
+
+A review surface for a slide deck. A person circles something on a slide and writes a note in the margin. The note is anchored to model elements (`{slideId, elementId}`), not pixels. Tools registered with WebMCP (`document.modelContext`) let an agent read that queue, edit the live deck the person is watching, and reply on the same pin.
+
+## Tools you will find
+
+Before a deck is open, one tool:
+
+- `open_deck` — opens the sample briefing or continues the saved session. The review tools appear once a deck is open.
+
+While a deck is open:
+
+- `list_slides` — outline of every slide and the current edit scope (`editableSlides`). Start here.
+- `read_slide` — one slide: type, current values, annotatable regions, and its revision. Read before writing.
+- `list_open_annotations` — the review queue: every open note, its anchor, its thread, and who is waiting on whom.
+- `set_slide_text` — rewrite one named text field on one slide.
+- `set_series` — replace the labelled values a chart draws.
+- `edit_items` — append, remove, replace or move one item in a slide's list.
+- `reply_to_annotation` — write back on a note, pinned where it sits.
+- `resolve_annotation` — close a note once the change is in.
+
+Only while a note of that kind is open:
+
+- `set_chart_form` — while a `visualize` note is open. Change how a slide draws its data.
+- `attach_research` — while a `research` note is open. Pin a verified figure with its source and period; may raise `contradicts` to flag a claim the figure undercuts.
+- `unify_across_slides` — while a `fix` note is open. Apply one text convention across several slides, one at a time, stoppable by the person.
+
+## The review protocol
+
+1. `list_open_annotations` — the notes are the work order.
+2. `read_slide` for the slide a note is on. Note the `rev`.
+3. Make one change with the narrowest writer that fits.
+4. `reply_to_annotation` with what you changed and why, or what you need first.
+5. `resolve_annotation` only once the change is actually in the deck.
+6. Re-read the queue; the person may have added notes or answered yours.
+
+## Rules the tools enforce
+
+- **Scope.** By default you may only write to slides that carry an open note. A write elsewhere returns `OUT_OF_SCOPE` with the noted slide ids. Ask the person to widen the scope switch rather than working around it.
+- **Revisions.** If the person changed a slide after you read it, a write returns `STALE_READ` with `changedSince`. Call `read_slide` again, then retry against the current values.
+- **Validation.** Every call is checked against the tool's `inputSchema` before it runs. `INVALID_INPUT` carries `problems` and the schema; fix the call, do not retry it unchanged.
+- **Facts and claims.** `attach_research` may correct a figure. If the figure undercuts a headline or a framing, set `contradicts` and stop. The author decides whether the claim changes.
+- **Sweeps.** `unify_across_slides` lands slide by slide in front of the person, who can stop it. A `CANCELLED` result lists `applied` and `remaining`; do not re-apply the remaining slides without asking.
+
+## Error shape
+
+Every failure is `{ ok: false, error: { code, message, ...recovery }, retrySafe }`. Codes: `NOT_FOUND`, `INVALID_INPUT`, `NOT_APPLICABLE`, `OUT_OF_SCOPE`, `STALE_READ`, `CANCELLED`, `ERROR`. The recovery fields (known ids, allowed values, the schema) are enough to make the next call correct.
+
+## More
+
+- [README](https://github.com/minjikim89/redline#readme)
+- [What building this taught us about WebMCP](https://github.com/minjikim89/redline/blob/main/docs/findings.md)
+- [The pattern, for any typed document](https://github.com/minjikim89/redline/blob/main/docs/pattern.md)

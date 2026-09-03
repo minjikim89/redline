@@ -1,4 +1,4 @@
-import type { Annotation, AnnotationKind, Author, Conflict, Deck, Pt, Reply, Target } from '../deck/types';
+import type { Annotation, AnnotationKind, Author, Conflict, Deck, Pt, Reply, Slide, Target } from '../deck/types';
 import { sampleDeck } from '../deck/sampleDeck';
 import { seedAnnotations } from './seed';
 
@@ -20,7 +20,18 @@ type State = {
   scope: 'noted' | 'all';
   /** The last region a TOOL wrote to — the page lights it up for a beat. */
   touch?: { seq: number; slideId: string; root: string };
+  /**
+   * Whether a deck is on screen. Before the person opens one, the review
+   * tools are not registered — an agent must not edit a deck nobody is
+   * looking at. The entry screen flips this.
+   */
+  opened: boolean;
+  /** A batch tool is landing changes slide by slide; the person can stop it. */
+  sweep: null | { tool: string; startedAt: number };
 };
+
+/** Who made a change. Tools pass 'agent'; everything the person does is 'human'. */
+export type Editor = 'human' | 'agent';
 
 // `?blank=1` opens an unmarked deck; the default shows the review already in progress.
 // `?fresh=1` ignores any saved session without deleting it — the e2e harness and
@@ -66,14 +77,20 @@ function persist() {
   }, 250);
 }
 
+// `?deck=1`, `?slide=n` and `?replay=1` deep-link straight onto the deck.
+const openedAtLoad = q.has('deck') || q.has('slide') || q.has('replay');
+
 let state: State = saved
-  ? { deck: saved.deck, annotations: saved.annotations, selected: null, calls: [], scope: saved.scope ?? 'noted' }
+  ? { deck: saved.deck, annotations: saved.annotations, selected: null, calls: [],
+      scope: saved.scope ?? 'noted', opened: openedAtLoad, sweep: null }
   : {
       deck: sampleDeck,
       annotations: blank ? [] : seedAnnotations.map(a => ({ ...a })),
       selected: null,
       calls: [],
       scope: 'noted',
+      opened: openedAtLoad,
+      sweep: null,
     };
 const listeners = new Set<() => void>();
 
@@ -89,11 +106,77 @@ const past: State[] = [];
 const future: State[] = [];
 const LIMIT = 60;
 
-const set = (next: Partial<State>) => {
+/* ---------- revisions ---------- *
+ * The claim this product makes is that a hand edit is visible to the agent
+ * at once. The half of that claim that is easy to forget is the race: the
+ * agent reads a slide, the person retypes the headline, the agent writes its
+ * fix — and silently overwrites the person. Every slide carries a revision
+ * counter that ticks on any change, from either side; `read_slide` records
+ * the revision the agent saw, and a writer that arrives after the person has
+ * moved the slide on is refused with what changed in between.
+ *
+ * Revisions live outside the undo history on purpose: an undo IS a change
+ * from the agent's point of view, so it must tick the counter too.
+ */
+export interface Change { rev: number; by: Editor; fields: string[]; at: number }
+const revs = new Map<string, number>();
+const changes = new Map<string, Change[]>();
+const lastAgentRead = new Map<string, number>();
+
+export const revisionOf = (slideId: string) => revs.get(slideId) ?? 0;
+
+/** The agent read this slide at its current revision. */
+export function noteAgentRead(slideId: string) {
+  lastAgentRead.set(slideId, revisionOf(slideId));
+}
+
+/** What moved on a slide since the agent last read it — or null if nothing did. */
+export function staleness(slideId: string) {
+  const seen = lastAgentRead.get(slideId);
+  if (seen === undefined) return null;                 // never read: nothing to be stale against
+  const now = revisionOf(slideId);
+  if (now <= seen) return null;
+  return {
+    readRev: seen, currentRev: now,
+    changedSince: (changes.get(slideId) ?? []).filter(c => c.rev > seen)
+      .map(c => ({ by: c.by, fields: c.fields })),
+  };
+}
+
+const changedFields = (a: Slide, b: Slide) => {
+  const keys = new Set([...Object.keys(a.props ?? {}), ...Object.keys(b.props ?? {})]);
+  const out = [...keys].filter(k => a.props?.[k] !== b.props?.[k]);
+  if (a.tone !== b.tone) out.push('tone');
+  if (a.conflict !== b.conflict) out.push('conflict');
+  return out;
+};
+
+/** Tick revisions for every slide that differs between two states. */
+function bump(prev: State, next: State, by: Editor) {
+  if (prev.deck === next.deck) return;
+  const before = new Map(prev.deck.slides.map(s => [s.id, s]));
+  for (const s of next.deck.slides) {
+    const was = before.get(s.id);
+    if (was === s) continue;
+    const fields = was ? changedFields(was, s) : ['*'];
+    if (was && !fields.length) continue;
+    const rev = revisionOf(s.id) + 1;
+    revs.set(s.id, rev);
+    const log = changes.get(s.id) ?? [];
+    log.push({ rev, by, fields, at: Date.now() });
+    changes.set(s.id, log.slice(-20));
+    // A slide the agent just wrote is, by definition, one it has seen.
+    if (by === 'agent' && lastAgentRead.has(s.id)) lastAgentRead.set(s.id, rev);
+  }
+}
+
+const set = (next: Partial<State>, by: Editor = 'human') => {
   past.push(state);
   if (past.length > LIMIT) past.shift();
   future.length = 0;
+  const prev = state;
   state = { ...state, ...next };
+  bump(prev, state, by);
   persist();
   emit();
 };
@@ -102,7 +185,9 @@ export function undo() {
   const prev = past.pop();
   if (!prev) return;
   future.push(state);
-  state = prev;
+  const was = state;
+  state = { ...prev, opened: state.opened, sweep: state.sweep };
+  bump(was, state, 'human');
   persist();
   emit();
 }
@@ -111,9 +196,42 @@ export function redo() {
   const next = future.pop();
   if (!next) return;
   past.push(state);
-  state = next;
+  const was = state;
+  state = { ...next, opened: state.opened, sweep: state.sweep };
+  bump(was, state, 'human');
   persist();
   emit();
+}
+
+/* ---------- the entry screen, and the person's stop button ---------- */
+
+export function setOpened(opened: boolean) {
+  if (state.opened === opened) return;
+  state = { ...state, opened };
+  emit();
+}
+
+let sweepCtl: AbortController | null = null;
+
+/** A batch tool starts landing changes. Returns the signal the person can pull. */
+export function beginSweep(tool: string) {
+  sweepCtl?.abort();
+  sweepCtl = new AbortController();
+  state = { ...state, sweep: { tool, startedAt: Date.now() } };
+  emit();
+  return sweepCtl.signal;
+}
+
+export function endSweep() {
+  sweepCtl = null;
+  if (!state.sweep) return;
+  state = { ...state, sweep: null };
+  emit();
+}
+
+/** The person pressed stop. The running tool sees its signal abort. */
+export function stopSweep() {
+  sweepCtl?.abort(new DOMException('Stopped by the person watching', 'AbortError'));
 }
 
 export const canUndo = () => past.length > 0;
@@ -132,7 +250,7 @@ const now = () => new Date().toISOString();
 export function raiseConflict(slideId: string, c: Omit<Conflict, 'raisedBy' | 'at'>) {
   const slides = state.deck.slides.map(s => s.id === slideId
     ? { ...s, conflict: { ...c, raisedBy: 'agent' as const, at: now() } } : s);
-  set({ deck: { ...state.deck, slides } });
+  set({ deck: { ...state.deck, slides } }, 'agent');
   return getSlide(slideId);
 }
 
@@ -150,7 +268,9 @@ export function getSlide(slideId: string) {
 /** Swap the whole deck, e.g. after an import. Clears notes, which belonged to the old one. */
 export function loadDeck(deck: Deck) {
   past.length = 0; future.length = 0;
-  state = { deck, annotations: [], selected: null, calls: [], scope: state.scope };
+  revs.clear(); changes.clear(); lastAgentRead.clear();
+  state = { deck, annotations: [], selected: null, calls: [], scope: state.scope,
+    opened: state.opened, sweep: null };
   persist();
   emit();
 }
@@ -160,7 +280,7 @@ export function setTone(slideId: string, tone: 'light' | 'white' | 'dark' | 'acc
   set({ deck: { ...state.deck, slides } });
 }
 
-export function setByPath(slideId: string, path: string, value: unknown) {
+export function setByPath(slideId: string, path: string, value: unknown, by: Editor = 'human') {
   const slide = getSlide(slideId);
   if (!slide) return null;
   const keys = path.split('.');
@@ -174,14 +294,14 @@ export function setByPath(slideId: string, path: string, value: unknown) {
   }
   node[keys[keys.length - 1]] = value;
   const slides = state.deck.slides.map(x => x.id === slideId ? { ...x, props } : x);
-  set({ deck: { ...state.deck, slides } });
+  set({ deck: { ...state.deck, slides } }, by);
   return getSlide(slideId);
 }
 
-export function updateSlideProps(slideId: string, patch: Record<string, unknown>) {
+export function updateSlideProps(slideId: string, patch: Record<string, unknown>, by: Editor = 'human') {
   const slides = state.deck.slides.map(s =>
     s.id === slideId ? { ...s, props: { ...s.props, ...patch } } : s);
-  set({ deck: { ...state.deck, slides } });
+  set({ deck: { ...state.deck, slides } }, by);
   return getSlide(slideId);
 }
 
@@ -309,7 +429,7 @@ export function snapshot(): State {
 
 export function restore(snap: State) {
   past.length = 0; future.length = 0;
-  state = { ...snap, selected: null };
+  state = { ...snap, selected: null, opened: state.opened, sweep: null };
   persist();
   emit();
 }
@@ -317,9 +437,10 @@ export function restore(snap: State) {
 /** Put the deck and the queue back to how the page opened. */
 export function reset() {
   past.length = 0; future.length = 0;
+  revs.clear(); changes.clear(); lastAgentRead.clear();
   state = {
     deck: sampleDeck, annotations: seedAnnotations.map(a => ({ ...a })),
-    selected: null, calls: [], scope: 'noted',
+    selected: null, calls: [], scope: 'noted', opened: state.opened, sweep: null,
   };
   persist();
   emit();

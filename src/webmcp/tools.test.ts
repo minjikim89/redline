@@ -53,7 +53,8 @@ describe('write tools stay narrow', () => {
   });
 
   it('refuses a field the slide type does not have, and says which it does', async () => {
-    const r = await callable.set_slide_text({ slideId: 's06', field: 'byline', text: 'x' });
+    // `source` is a real field on other slide types, but a figures slide has none
+    const r = await callable.set_slide_text({ slideId: 's06', field: 'source', text: 'x' });
     expect(r.ok).toBe(false);
     expect(r.error.code).toBe('NOT_APPLICABLE');
     expect(r.error.fieldsOnThisSlide).toBeInstanceOf(Array);
@@ -106,7 +107,8 @@ describe('the chart form enum cannot drift from the renderer', () => {
     const r = await callable.set_chart_form({ slideId: 's06', chartForm: 'bar' });
     expect(r.ok).toBe(false);
     expect(r.error.code).toBe('INVALID_INPUT');
-    expect(r.error.allowedForms).toEqual(['cards', 'column', 'pie']);
+    // the schema refuses it first, naming the real ones
+    expect(r.error.problems[0].message).toMatch(/cards, column, pie/);
   });
 
   it('refuses a slide with no chart at all', async () => {
@@ -136,14 +138,15 @@ describe('attach_research', () => {
     expect(store.getSlide('s08')!.conflict?.why).toMatch(/2024/);
   });
 
-  it('rejects a conflict pointed at a region that is not on the slide', async () => {
+  it('rejects a conflict pointed at a region that is not on the slide, and writes nothing', async () => {
+    const before = store.getSlide('s08')!.props.source;
     const r = await callable.attach_research({
       slideId: 's08', source: 'x', asOf: 'y',
       contradicts: { elementId: 'nonsense', claim: 'a', why: 'b' },
     });
     expect(r.ok).toBe(false);
     expect(r.error.regionsOnThisSlide).toContain('title');
-    expect(r.error.wroteFigureAnyway).toBe(true);
+    expect(store.getSlide('s08')!.props.source).toBe(before);   // never half-applied
   });
 });
 

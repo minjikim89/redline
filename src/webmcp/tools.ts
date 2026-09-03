@@ -1,19 +1,22 @@
 import { registry } from '../deck/registry';
 import * as store from '../annotations/store';
+import { validate } from './validate';
 
 /**
  * WebMCP surface.
  *
- * Three commitments, each traceable to Chrome's WebMCP guidance:
+ * Four commitments, each traceable to Chrome's WebMCP guidance:
  *
  * 1. NO GENERAL-PURPOSE WRITE TOOL. Every writer takes a typed, enumerated
  *    argument. An `update(slideId, props: object)` escape hatch would win every
  *    routing decision and collapse the rest of this surface into string editing.
  *    ("Be careful not to create overlapping tools." — best-practices)
  *
- * 2. TOOLS FOLLOW THE QUEUE. Three tools exist only while a note of the matching
- *    kind is open, and are unregistered via AbortController when it closes. A
- *    person, by marking up the deck, authors the agent's toolset.
+ * 2. TOOLS FOLLOW THE PAGE. Nothing is registered until a deck is on screen —
+ *    before that, one tool exists, and it opens a deck. Three more exist only
+ *    while a note of the matching kind is open, and are unregistered via
+ *    AbortController when it closes. A person, by marking up the deck, authors
+ *    the agent's toolset.
  *    ("Register tools when they're useful in a certain page state, then
  *     unregister when the tool is no longer usable." — best-practices)
  *
@@ -21,6 +24,11 @@ import * as store from '../annotations/store';
  *    agent-fetched external data carries `untrustedContentHint`.
  *    ("If a tool returns user-generated content (UGC) or externally sourced
  *     data, consider adding the untrustedContentHint." — secure-tools)
+ *
+ * 4. INPUT IS VALIDATED IN CODE. The browser does not check arguments against
+ *    `inputSchema` (spec issue #92), so every call is validated here before it
+ *    can touch the deck, and a bad call comes back with the schema's own words.
+ *    ("Validate strictly in code, loosely in schema." — best-practices)
  */
 
 type Exec = (input: any, opts?: { signal?: AbortSignal }) => Promise<any>;
@@ -41,12 +49,11 @@ const ok = (o: object) => ({ ok: true, ...o });
  * message is a dead end. ("Add descriptive errors to your function code to
  * allow the model to self-correct and retry with new, valid parameters.")
  */
-const fail = (
-  code: 'NOT_FOUND' | 'INVALID_INPUT' | 'NOT_APPLICABLE' | 'CANCELLED' | 'OUT_OF_SCOPE',
-  message: string,
-  recovery: object = {},
-  retrySafe = true,
-) => ({ ok: false, error: { code, message, ...recovery }, retrySafe });
+type Code =
+  | 'NOT_FOUND' | 'INVALID_INPUT' | 'NOT_APPLICABLE' | 'CANCELLED'
+  | 'OUT_OF_SCOPE' | 'STALE_READ' | 'NO_DECK' | 'ERROR';
+const fail = (code: Code, message: string, recovery: object = {}, retrySafe = true) =>
+  ({ ok: false, error: { code, message, ...recovery }, retrySafe });
 
 /** Keep a list inside the output budget rather than letting it be truncated blind. */
 function fit<T>(items: T[], render: (t: T) => any) {
@@ -83,17 +90,80 @@ const outOfScope = (slideId: string) => {
     });
 };
 
+/**
+ * The person moved this slide on after the agent read it. Writing now would
+ * overwrite their hand — the exact failure this product exists to prevent.
+ * The refusal carries what changed, so one re-read is enough to continue.
+ */
+const stale = (slideId: string) => {
+  const s = store.staleness(slideId);
+  if (!s) return null;
+  return fail('STALE_READ',
+    `"${slideId}" changed after you read it (rev ${s.readRev} → ${s.currentRev}). Read it again before writing.`,
+    { ...s, hint: 'Call read_slide, then retry against the current values.' });
+};
+
+/** Every point writer runs the same three gates, in this order. */
+const gate = (slideId: string) => {
+  const s = store.getSlide(slideId);
+  if (!s) return { slide: null, refused: fail('NOT_FOUND', `No slide "${slideId}".`, { knownSlideIds: slideIds() }) };
+  return { slide: s, refused: outOfScope(slideId) ?? stale(slideId) };
+};
+
 export function webmcpSupported() {
   return typeof document !== 'undefined'
-    && typeof (document as any).modelContext?.registerTool === 'function';
+    && typeof document.modelContext?.registerTool === 'function';
 }
-const mc = () => (document as any).modelContext;
 
 /* ------------------------------------------------------------------ *
- * Always registered
+ * Before a deck is open: one tool, and it opens a deck
  * ------------------------------------------------------------------ */
 
-const TEXT_FIELDS = ['title', 'kicker', 'caption', 'subtitle', 'byline', 'source'] as const;
+const entryTools: Reg[] = [
+  {
+    name: 'open_deck',
+    title: 'Open a deck',
+    description:
+      'No deck is on screen yet, so there is nothing to review. Opens the sample briefing '
+      + '(12 slides, already marked up) or continues the session saved in this browser. The '
+      + 'review tools appear once a deck is open.',
+    inputSchema: {
+      type: 'object',
+      properties: { which: { type: 'string', enum: ['sample', 'saved'] } },
+      required: ['which'], additionalProperties: false,
+    },
+    execute: async ({ which }: any) => {
+      if (which === 'saved' && !store.restoredFromSave)
+        return fail('NOT_FOUND', 'There is no saved session in this browser.', { available: ['sample'] });
+      if (which === 'sample' && (store.restoredFromSave || store.getState().deck.id !== 'screen-to-cart'))
+        store.reset();
+      store.setOpened(true);
+      return ok({ opened: which, deck: store.getState().deck.title, slides: store.getState().deck.slides.length,
+        next: 'The review tools are registered now. Start with list_open_annotations.' });
+    },
+  },
+];
+
+/* ------------------------------------------------------------------ *
+ * Always registered while a deck is open
+ * ------------------------------------------------------------------ */
+
+/**
+ * Every top-level free-text prop any slide type declares. Derived from the
+ * registry so the enum the agent sees can never drift from what a slide can
+ * actually hold; `chartForm` and other enums are excluded — they have tools.
+ */
+const TEXT_FIELDS = [...new Set(Object.values(registry).flatMap(d =>
+  Object.entries<any>(d.propSchema)
+    .filter(([, v]) => v?.type === 'string' && !v.enum)
+    .map(([k]) => k)))].sort();
+
+/** What the person can do to bring a conditional tool into existence. */
+const HOW_TO_OPEN: Record<string, string> = {
+  visualize: 'circle a chart and mark the note visualize',
+  research: 'circle a figure and mark the note research',
+  fix: 'circle the text and mark the note fix',
+};
 
 const baseTools: Reg[] = [
   {
@@ -109,6 +179,13 @@ const baseTools: Reg[] = [
         head: String(s.props.title ?? s.props.caption ?? 'cover').slice(0, 60),
       }));
       const st = store.getState();
+      const kinds = new Set<string>(store.openKinds());
+      // Tools that are NOT registered right now, with the reason and the way
+      // back. An agent that cannot find set_chart_form should ask the person
+      // for a visualize note, not hunt for the tool (spec issue #262).
+      const unavailableTools = Object.entries(conditionalTools)
+        .filter(([kind]) => !kinds.has(kind))
+        .map(([kind, t]) => ({ name: t.name, because: `no ${kind} note is open`, how: HOW_TO_OPEN[kind] }));
       return ok({
         deck: st.deck.title, slides: items, omitted,
         // The person's standing instruction, stated up front rather than
@@ -116,6 +193,7 @@ const baseTools: Reg[] = [
         // response lives inside the documented output budget.
         editableSlides: st.scope === 'noted' && store.notedSlideIds().length
           ? store.notedSlideIds() : 'all',
+        ...(unavailableTools.length && { unavailableTools }),
       });
     },
   },
@@ -123,8 +201,9 @@ const baseTools: Reg[] = [
     name: 'read_slide',
     title: 'Read a slide',
     description:
-      'One slide in full: its type, current prop values, and the ids of regions that can '
-      + 'carry a note. Read before writing.',
+      'One slide in full: its type, current prop values, the ids of regions that can carry '
+      + 'a note, and its revision. Read before writing — a write after the person has '
+      + 'changed the slide is refused until you read it again.',
     inputSchema: {
       type: 'object',
       properties: { slideId: { type: 'string', description: 'An id from list_slides.' } },
@@ -135,11 +214,23 @@ const baseTools: Reg[] = [
     execute: async ({ slideId }: any) => {
       const s = store.getSlide(slideId);
       if (!s) return fail('NOT_FOUND', `No slide "${slideId}".`, { knownSlideIds: slideIds() });
-      return ok({
-        slideId: s.id, type: s.type, props: s.props,
+      store.noteAgentRead(slideId);
+      const full = {
+        slideId: s.id, type: s.type, rev: store.revisionOf(slideId), props: s.props,
         annotatableElements: registry[s.type].elements,
         series: registry[s.type].series ?? [],
-      });
+      };
+      if (JSON.stringify(full).length <= OUTPUT_BUDGET) return ok(full);
+      // An imported deck can carry more than the budget holds. Trim the long
+      // lists and say so, rather than letting the agent's client cut it blind.
+      const props: Record<string, unknown> = {};
+      const trimmed: string[] = [];
+      for (const [k, v] of Object.entries(s.props)) {
+        if (Array.isArray(v) && v.length > 3) { props[k] = v.slice(0, 3); trimmed.push(`${k} (${v.length} items, 3 shown)`); }
+        else if (typeof v === 'string' && v.length > 200) { props[k] = v.slice(0, 200) + '…'; trimmed.push(k); }
+        else props[k] = v;
+      }
+      return ok({ ...full, props, trimmed });
     },
   },
   {
@@ -182,22 +273,21 @@ const baseTools: Reg[] = [
       type: 'object',
       properties: {
         slideId: { type: 'string' },
-        field: { type: 'string', enum: TEXT_FIELDS as unknown as string[] },
+        field: { type: 'string', enum: TEXT_FIELDS },
         text: { type: 'string', maxLength: 400 },
       },
       required: ['slideId', 'field', 'text'], additionalProperties: false,
     },
     execute: async ({ slideId, field, text }: any) => {
-      const s = store.getSlide(slideId);
-      if (!s) return fail('NOT_FOUND', `No slide "${slideId}".`, { knownSlideIds: slideIds() });
-      const scoped = outOfScope(slideId);
-      if (scoped) return scoped;
+      const { slide: s, refused } = gate(slideId);
+      if (!s) return refused;
+      if (refused) return refused;
       if (!(field in registry[s.type].propSchema))
         return fail('NOT_APPLICABLE', `A ${s.type} slide has no "${field}".`,
           { fieldsOnThisSlide: Object.keys(registry[s.type].propSchema) });
-      store.updateSlideProps(slideId, { [field]: text });
+      store.updateSlideProps(slideId, { [field]: text }, 'agent');
       store.markTouch(slideId, field);
-      return ok({ slideId, field, text });
+      return ok({ slideId, field, text, rev: store.revisionOf(slideId) });
     },
   },
   {
@@ -227,10 +317,9 @@ const baseTools: Reg[] = [
       required: ['slideId', 'series', 'rows'], additionalProperties: false,
     },
     execute: async ({ slideId, series, rows }: any) => {
-      const s = store.getSlide(slideId);
-      if (!s) return fail('NOT_FOUND', `No slide "${slideId}".`, { knownSlideIds: slideIds() });
-      const scoped = outOfScope(slideId);
-      if (scoped) return scoped;
+      const { slide: s, refused } = gate(slideId);
+      if (!s) return refused;
+      if (refused) return refused;
       const available = registry[s.type].series ?? [];
       if (!available.length)
         return fail('NOT_APPLICABLE', `A ${s.type} slide draws no series.`,
@@ -239,9 +328,9 @@ const baseTools: Reg[] = [
       if (!available.includes(series))
         return fail('INVALID_INPUT', `"${series}" is not a series on this slide.`,
           { seriesOnThisSlide: available });
-      store.setByPath(slideId, series, rows);
+      store.setByPath(slideId, series, rows, 'agent');
       store.markTouch(slideId, series.split('.')[0]);
-      return ok({ slideId, series, rows: rows.length });
+      return ok({ slideId, series, rows: rows.length, rev: store.revisionOf(slideId) });
     },
   },
   {
@@ -268,10 +357,9 @@ const baseTools: Reg[] = [
       required: ['slideId', 'list', 'op'], additionalProperties: false,
     },
     execute: async ({ slideId, list, op, index, to, item }: any) => {
-      const s = store.getSlide(slideId);
-      if (!s) return fail('NOT_FOUND', `No slide "${slideId}".`, { knownSlideIds: slideIds() });
-      const scoped = outOfScope(slideId);
-      if (scoped) return scoped;
+      const { slide: s, refused } = gate(slideId);
+      if (!s) return refused;
+      if (refused) return refused;
 
       const schema = registry[s.type].propSchema[list];
       const editableLists = Object.entries<any>(registry[s.type].propSchema)
@@ -295,6 +383,10 @@ const baseTools: Reg[] = [
         const missing = (schema.items.required ?? []).filter((k: string) => !(k in item));
         if (missing.length)
           return bad(`The item is missing ${missing.join(', ')}.`, { requiredKeys: schema.items.required });
+        // The list's own item schema is the law for values too, not only keys.
+        const problems = validate(schema.items, item, 'item');
+        if (problems.length)
+          return bad('The item does not fit this list\'s schema.', { problems, itemSchema: schema.items });
       }
 
       if (op === 'append') {
@@ -316,9 +408,9 @@ const baseTools: Reg[] = [
         }
       }
 
-      store.setByPath(slideId, list, rows);
+      store.setByPath(slideId, list, rows, 'agent');
       store.markTouch(slideId, list);
-      return ok({ slideId, list, op, count: rows.length });
+      return ok({ slideId, list, op, count: rows.length, rev: store.revisionOf(slideId) });
     },
   },
   {
@@ -363,8 +455,9 @@ const baseTools: Reg[] = [
  * ------------------------------------------------------------------ */
 
 const sleep = (ms: number, signal?: AbortSignal) => new Promise<void>((res, rej) => {
-  const t = setTimeout(res, ms);
-  signal?.addEventListener('abort', () => { clearTimeout(t); rej(signal.reason); }, { once: true });
+  const onAbort = () => { clearTimeout(t); rej(signal?.reason); };
+  const t = setTimeout(() => { signal?.removeEventListener('abort', onAbort); res(); }, ms);
+  signal?.addEventListener('abort', onAbort, { once: true });
 });
 
 const conditionalTools: Record<string, Reg> = {
@@ -385,10 +478,9 @@ const conditionalTools: Record<string, Reg> = {
       required: ['slideId', 'chartForm'], additionalProperties: false,
     },
     execute: async ({ slideId, chartForm, rationale }: any) => {
-      const s = store.getSlide(slideId);
-      if (!s) return fail('NOT_FOUND', `No slide "${slideId}".`, { knownSlideIds: slideIds() });
-      const scoped = outOfScope(slideId);
-      if (scoped) return scoped;
+      const { slide: s, refused } = gate(slideId);
+      if (!s) return refused;
+      if (refused) return refused;
       if (!('chartForm' in registry[s.type].propSchema))
         return fail('NOT_APPLICABLE', `A ${s.type} slide has no chart form.`,
           { slidesWithChartForm: store.getState().deck.slides
@@ -398,9 +490,10 @@ const conditionalTools: Record<string, Reg> = {
         return fail('INVALID_INPUT', `"${chartForm}" is not a form this slide can take.`,
           { allowedForms: allowed });
       const before = s.props.chartForm;
-      store.updateSlideProps(slideId, { chartForm });
+      store.updateSlideProps(slideId, { chartForm }, 'agent');
       store.markTouch(slideId, 'chart');
-      return ok({ slideId, before, after: chartForm, items: s.props.items?.length, rationale });
+      return ok({ slideId, before, after: chartForm, items: s.props.items?.length, rationale,
+        rev: store.revisionOf(slideId) });
     },
   },
 
@@ -438,28 +531,31 @@ const conditionalTools: Record<string, Reg> = {
     // hands back data the agent fetched from outside this page
     annotations: { untrustedContentHint: true },
     execute: async ({ slideId, value, unit, source, asOf, contradicts }: any) => {
-      const s = store.getSlide(slideId);
-      if (!s) return fail('NOT_FOUND', `No slide "${slideId}".`, { knownSlideIds: slideIds() });
-      const scoped = outOfScope(slideId);
-      if (scoped) return scoped;
-      const patch: Record<string, unknown> = { source, asOf };
-      if (value !== undefined) patch.value = value;
-      if (unit !== undefined) patch.unit = unit;
-      store.updateSlideProps(slideId, patch);
-      store.markTouch(slideId, 'source');
-
-      let raised = false;
+      const { slide: s, refused } = gate(slideId);
+      if (!s) return refused;
+      if (refused) return refused;
+      // Check the conflict target BEFORE writing anything, so a bad region id
+      // never leaves the slide half-updated.
       if (contradicts) {
         const regions = registry[s.type].elements;
         if (!regions.includes(contradicts.elementId))
           return fail('INVALID_INPUT',
             `"${contradicts.elementId}" is not a region on this slide.`,
-            { regionsOnThisSlide: regions, wroteFigureAnyway: true });
+            { regionsOnThisSlide: regions });
+      }
+      const patch: Record<string, unknown> = { source, asOf };
+      if (value !== undefined) patch.value = value;
+      if (unit !== undefined) patch.unit = unit;
+      store.updateSlideProps(slideId, patch, 'agent');
+      store.markTouch(slideId, 'source');
+
+      let raised = false;
+      if (contradicts) {
         store.raiseConflict(slideId, contradicts);
         raised = true;
       }
       return ok({
-        slideId, wrote: Object.keys(patch), conflictRaised: raised,
+        slideId, wrote: Object.keys(patch), conflictRaised: raised, rev: store.revisionOf(slideId),
         ...(raised && { note: 'Flagged for the author. The claim was not rewritten.' }),
       });
     },
@@ -478,7 +574,7 @@ const conditionalTools: Record<string, Reg> = {
     inputSchema: {
       type: 'object',
       properties: {
-        field: { type: 'string', enum: TEXT_FIELDS as unknown as string[] },
+        field: { type: 'string', enum: TEXT_FIELDS },
         slideIds: { type: 'array', minItems: 1, maxItems: 24, items: { type: 'string' } },
         template: {
           type: 'string', maxLength: 240,
@@ -487,43 +583,87 @@ const conditionalTools: Record<string, Reg> = {
       },
       required: ['field', 'slideIds', 'template'], additionalProperties: false,
     },
-    // Long-running and cancellable: the person can stop it mid-sweep.
+    /**
+     * Long-running and cancellable from BOTH sides. The agent's host can abort
+     * `opts.signal`; the person has a stop button on the page that aborts the
+     * store's sweep signal. Either one ends the sweep between slides. Only the
+     * page-side stop can be reported back to the agent: when the caller aborts,
+     * the spec discards the tool's own resolution, so that report lands on the
+     * on-page trail instead.
+     */
     execute: async ({ field, slideIds: ids, template }: any, opts) => {
       const applied: string[] = [];
       const skipped: { id: string; why: string }[] = [];
+      const page = store.beginSweep('unify_across_slides');
+      const signal = opts?.signal ? AbortSignal.any([opts.signal, page]) : page;
       try {
         for (const id of ids) {
-          opts?.signal?.throwIfAborted?.();
+          if (signal.aborted) throw signal.reason;
           const s = store.getSlide(id);
           if (!s) { skipped.push({ id, why: 'no such slide' }); continue; }
           if (!(field in registry[s.type].propSchema)) {
             skipped.push({ id, why: `a ${s.type} slide has no "${field}"` }); continue;
           }
+          if (store.staleness(id)) {
+            skipped.push({ id, why: 'changed since you read it — read_slide again' }); continue;
+          }
           const next = template.replace('{value}', String(s.props[field] ?? ''));
-          store.updateSlideProps(id, { [field]: next });
+          store.updateSlideProps(id, { [field]: next }, 'agent');
           store.markTouch(id, field);
           applied.push(id);
-          await sleep(320, opts?.signal);       // visible, and interruptible
+          await sleep(320, signal);       // visible, and interruptible
         }
-      } catch {
-        return fail('CANCELLED', 'Stopped partway by the person watching.',
-          { applied, remaining: ids.filter((i: string) => !applied.includes(i)) },
-          false);
+      } catch (e) {
+        const remaining = ids.filter((i: string) => !applied.includes(i));
+        if (signal.aborted) {
+          return fail('CANCELLED',
+            page.aborted ? 'Stopped partway by the person watching.' : 'Stopped partway by the caller.',
+            { applied, remaining, stoppedBy: page.aborted ? 'person' : 'agent' }, false);
+        }
+        return fail('ERROR', e instanceof Error ? e.message : String(e), { applied, remaining }, false);
+      } finally {
+        store.endSweep();
       }
       return ok({ field, applied, skipped });
     },
   },
 };
 
+/* ------------------------------------------------------------------ *
+ * Validation, tracing, and the callable surface
+ * ------------------------------------------------------------------ */
+
 /**
- * The same tool bodies, callable locally. Used by the scripted replay so a
- * visitor without an agent still sees the loop run — through the real
- * implementations, not a mock of them.
+ * Wrap every execute: validate the input against the tool's own schema first,
+ * then run, then record the call on the on-page trail. Both the browser's
+ * calls and the scripted replay go through this, so what a judge sees the
+ * page do and what an agent gets back are the same thing.
  */
-/** Wrap every execute so each invocation shows up in the on-page trail. */
+/**
+ * Tools whose execute is in flight. Unregistering a tool while it runs kills
+ * its pending execution in Chrome before 153 (the caller sees UnknownError),
+ * so the sync below leaves a running tool registered and catches up once it
+ * has returned. `open_deck` is the case that hits this: its own success is
+ * what removes it.
+ */
+const executing = new Map<string, number>();
+
 function traced(t: Reg): Exec {
   return async (input, opts) => {
-    const r = await t.execute(input, opts);
+    executing.set(t.name, (executing.get(t.name) ?? 0) + 1);
+    let r: any;
+    try {
+      const problems = validate(t.inputSchema, input ?? {});
+      r = problems.length
+        ? fail('INVALID_INPUT', `The call does not match ${t.name}'s input schema.`,
+            { problems, inputSchema: t.inputSchema })
+        : await t.execute(input ?? {}, opts);
+    } finally {
+      const n = (executing.get(t.name) ?? 1) - 1;
+      if (n <= 0) executing.delete(t.name); else executing.set(t.name, n);
+      // Let the result reach the caller before any re-sync can unregister us.
+      setTimeout(() => { syncTools().catch(() => { /* reported in the UI */ }); }, 0);
+    }
     const detail = r?.ok === false
       ? String(r.error?.code ?? 'error')
       : Object.entries(input ?? {}).slice(0, 2)
@@ -534,12 +674,14 @@ function traced(t: Reg): Exec {
   };
 }
 
+/** The same tool bodies, callable locally — the scripted replay and the tests use these. */
 export const callable: Record<string, Exec> = Object.fromEntries(
-  [...baseTools, ...Object.values(conditionalTools)].map(t => [t.name, traced(t)]),
+  [...entryTools, ...baseTools, ...Object.values(conditionalTools)].map(t => [t.name, traced(t)]),
 );
 
 /** The surface as it would register — for showing what exists even with no agent attached. */
 export const advertisedTools = {
+  entry: entryTools.map(t => t.name),
   base: baseTools.map(t => t.name),
   conditional: Object.entries(conditionalTools).map(([kind, t]) => ({ kind, name: t.name })),
 };
@@ -549,54 +691,72 @@ export const advertisedTools = {
  * ------------------------------------------------------------------ */
 
 /**
- * Every registration is owned by an AbortController, including the permanent
- * ones. Aborting before re-registering is what makes StrictMode's double
- * invoke and HMR safe — swallowing a duplicate-name error instead would leave
- * the FIRST registration live and the new one silently dropped.
+ * Every registration is owned by an AbortController. Aborting it is the only
+ * way the spec offers to unregister, and aborting before re-registering is
+ * what makes StrictMode's double invoke and HMR safe — swallowing a
+ * duplicate-name error instead would leave the FIRST registration live and
+ * the new one silently dropped.
  */
-const baseCtl = new Map<string, AbortController>();
-const condCtl = new Map<string, AbortController>();
+const live = new Map<string, AbortController>();
 
-async function register(t: Reg, signal: AbortSignal) {
-  await mc().registerTool(
+async function register(t: Reg) {
+  live.get(t.name)?.abort();
+  const ac = new AbortController();
+  live.set(t.name, ac);
+  await document.modelContext!.registerTool(
     {
       name: t.name, title: t.title, description: t.description,
       inputSchema: t.inputSchema, annotations: t.annotations,
       execute: (input: any, opts: any) => traced(t)(input, opts),
     },
-    { signal },
+    { signal: ac.signal },
   );
 }
 
-/** Keep the conditional set in step with the open queue. */
-export async function syncConditionalTools() {
-  if (!webmcpSupported()) return;
-  const kinds = new Set<string>(store.openKinds());
-
-  for (const [kind, tool] of Object.entries(conditionalTools)) {
-    const live = condCtl.get(kind);
-    if (kinds.has(kind) && !live) {
-      const ac = new AbortController();
-      condCtl.set(kind, ac);
-      try { await register(tool, ac.signal); } catch { condCtl.delete(kind); }
-    } else if (!kinds.has(kind) && live) {
-      live.abort();
-      condCtl.delete(kind);
-    }
-  }
+function unregister(name: string) {
+  live.get(name)?.abort();
+  live.delete(name);
 }
 
+/** The set that should be registered for the page as it is right now. */
+function wanted(): Reg[] {
+  const st = store.getState();
+  if (!st.opened) return entryTools;
+  const kinds = new Set<string>(store.openKinds());
+  return [...baseTools, ...Object.entries(conditionalTools).filter(([k]) => kinds.has(k)).map(([, t]) => t)];
+}
+
+let syncing: Promise<void> | null = null;
+
+/**
+ * Bring the registered set in step with the page: the entry tool before a
+ * deck is open, the review set once it is, the conditional three while a note
+ * of their kind is open. Serialised, so two store updates in a row cannot
+ * interleave their registrations.
+ */
+export function syncTools(): Promise<void> {
+  if (!webmcpSupported()) return Promise.resolve();
+  const run = async () => {
+    const want = wanted();
+    const names = new Set(want.map(t => t.name));
+    for (const name of [...live.keys()])
+      if (!names.has(name) && !executing.has(name)) unregister(name);
+    for (const t of want) if (!live.has(t.name)) await register(t);
+  };
+  syncing = (syncing ?? Promise.resolve()).then(run, run);
+  return syncing;
+}
+
+/** Names of the tools the browser currently exposes for this page. */
+export async function liveTools(): Promise<string[]> {
+  if (!webmcpSupported()) return [];
+  const tools = await document.modelContext!.getTools();
+  return tools.map(t => t.name);
+}
+
+/** First registration, before first paint, plus the store subscription that keeps it in step. */
 export async function registerAll() {
   if (!webmcpSupported()) return { supported: false, tools: [] as string[] };
-
-  for (const t of baseTools) {
-    baseCtl.get(t.name)?.abort();          // idempotent across StrictMode / HMR
-    const ac = new AbortController();
-    baseCtl.set(t.name, ac);
-    await register(t, ac.signal);
-  }
-  await syncConditionalTools();
-
-  const tools = await mc().getTools();
-  return { supported: true, tools: tools.map((t: any) => t.name) };
+  await syncTools();
+  return { supported: true, tools: await liveTools() };
 }

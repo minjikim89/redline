@@ -9,7 +9,7 @@
     "lint": "oxlint",
     "preview": "vite preview",
     "check:data": "node scripts/check-placeholders.mjs",
-    "evals": "webmcp-evals smoke -u http://localhost:5180 -e evals/redline.json -v",
+    "evals": "webmcp-evals smoke -u http://localhost:5180/?deck=1 -e evals/redline.json -v",
     "test": "vitest run",
     "test:watch": "vitest"
   },
@@ -27,6 +27,10 @@
     "oxlint": "^1.79.0",
     "typescript": "~6.0.2",
     "vite": "^8.2.2",
-    "vitest": "^4.1.11"
+    "vitest": "^4.1.11",
+    "webmcp-evals": "^0.0.4"
+  },
+  "engines": {
+    "node": ">=22.22"
   }
 }

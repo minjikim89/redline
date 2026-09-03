@@ -588,3 +588,18 @@ button:focus-visible,textarea:focus-visible{outline:2px solid var(--pink);outlin
 .q-b{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .q-s{flex:none;font:600 9.5px 'IBM Plex Sans';color:var(--chrome-dim)}
 .q-w{flex:none;font-size:10px;color:var(--pink)}
+
+/* The person's hand on a running sweep. */
+.stop-sweep{background:#FFF1E6;color:#9A3C00;font-weight:600;border:1px solid #F5C9A8}
+.stop-sweep:hover:not(:disabled){background:#FFE3CC;color:#7A2E00}
+.tb-hint.sweeping{color:#9A3C00;font-weight:500}
+
+/* Motion is a courtesy, not a requirement. */
+@media (prefers-reduced-motion: reduce){
+  .just-touched{animation:none;outline:2px solid rgba(255,0,200,.55);outline-offset:2px}
+  .cf-ring{animation:none}
+}
+
+.st-env{margin:10px 0 0;font-size:11px;line-height:1.5;color:#7A8290}
+.st-env b{color:#3A4250;font-weight:600}
+.st-env code{font:500 10.5px ui-monospace,Menlo,monospace;color:#5B6472}

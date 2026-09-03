@@ -103,11 +103,18 @@ const stale = (slideId: string) => {
     { ...s, hint: 'Call read_slide, then retry against the current values.' });
 };
 
+/**
+ * The page-enforced guards. Both are on in the product; the guardrail eval
+ * (scripts/guardrail-eval.mts) turns them off for its control arm so the
+ * difference they make can be measured rather than asserted.
+ */
+export const guards = { scope: true, stale: true };
+
 /** Every point writer runs the same three gates, in this order. */
 const gate = (slideId: string) => {
   const s = store.getSlide(slideId);
   if (!s) return { slide: null, refused: fail('NOT_FOUND', `No slide "${slideId}".`, { knownSlideIds: slideIds() }) };
-  return { slide: s, refused: outOfScope(slideId) ?? stale(slideId) };
+  return { slide: s, refused: (guards.scope ? outOfScope(slideId) : null) ?? (guards.stale ? stale(slideId) : null) };
 };
 
 export function webmcpSupported() {
@@ -604,7 +611,7 @@ const conditionalTools: Record<string, Reg> = {
           if (!(field in registry[s.type].propSchema)) {
             skipped.push({ id, why: `a ${s.type} slide has no "${field}"` }); continue;
           }
-          if (store.staleness(id)) {
+          if (guards.stale && store.staleness(id)) {
             skipped.push({ id, why: 'changed since you read it — read_slide again' }); continue;
           }
           const next = template.replace('{value}', String(s.props[field] ?? ''));
@@ -678,6 +685,10 @@ function traced(t: Reg): Exec {
 export const callable: Record<string, Exec> = Object.fromEntries(
   [...entryTools, ...baseTools, ...Object.values(conditionalTools)].map(t => [t.name, traced(t)]),
 );
+
+/** Every tool's contract, for an agent client outside the browser (the eval harness). */
+export const toolSchemas = () => [...entryTools, ...baseTools, ...Object.values(conditionalTools)]
+  .map(t => ({ name: t.name, description: t.description, inputSchema: t.inputSchema, annotations: t.annotations }));
 
 /** The surface as it would register — for showing what exists even with no agent attached. */
 export const advertisedTools = {

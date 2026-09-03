@@ -4,6 +4,34 @@ Notes from implementing against the spec (Draft CG Report, 2 September 2026),
 Chrome 152 with `chrome://flags/#enable-webmcp-testing`, and the ChatGPT desktop
 browser. Each item was hit in practice, not read about.
 
+## 0. A fourth mitigation for §6.4: page-enforced write boundaries
+
+§6.4 lists three mitigations — input-length limits, shared attack evals, and the
+`untrustedContentHint` annotation. All three address one direction: a site
+misleading an agent. §6.3.2's *Current Gaps* ends with "no verification mechanism …
+no behavioral contracts … agents must assume good faith from site developers."
+Nothing in §6 addresses the other direction: an agent, misled or simply
+over-eager, exceeding the scope the person delegated on a site that trusted it.
+
+Redline implements that missing mitigation, and it does not depend on the model
+staying unpersuaded:
+
+- **Scope is owned by the page, not the prompt.** A write outside the slides the
+  person marked returns `OUT_OF_SCOPE`. The read tool states the scope up front.
+- **Concurrency is owned by the page.** A write over a slide the person changed
+  since the agent's last read returns `STALE_READ` with the diff. The agent cannot
+  overwrite a hand it has not seen.
+- **Long-running writes are stoppable by the page.** A sweep runs on a
+  page-owned signal combined with the caller's; the person's stop is reported back
+  as `CANCELLED` with what landed.
+- **Facts and positions are separated at the API.** The research writer may
+  correct a figure; it may only *flag* a claim (`contradicts`).
+
+Our defence does not rely on the model not being fooled. An agent that is fully
+convinced by injected text still has its writes refused by the page. This is the
+"behavioral contract" §6.3.2 says is missing — expressed as structured refusals
+that a host can surface uniformly. Proposed as a §6.4 addition below (draft issue 3).
+
 ## 1. The browser does not validate tool input against `inputSchema`
 
 Spec issue [#92](https://github.com/webmachinelearning/webmcp/issues/92) is open;
@@ -160,3 +188,25 @@ re-sync, and re-syncs once they return.
 Note: #146 (`toolactivated` / `toolcancel`) is closed in the spec; a third-party
 review measured that Chrome 152 does not fire `toolactivated` for imperative
 tools and that only `toolchange` is observable. Not independently verified here.
+
+## Draft issue 3 for webmachinelearning/webmcp
+
+> **Title:** §6.4: add page-enforced write boundaries as a mitigation for agent over-reach
+>
+> §6.4's mitigations all address a site misleading an agent. §6.3.2 *Current Gaps*
+> notes there are no behavioral contracts and agents must assume good faith. The
+> reverse direction — an agent exceeding the scope a person delegated on a site
+> that exposed write tools — has no listed mitigation, and it is the direction
+> prompt injection actually exploits: the injected instruction lives in the site's
+> content, and the damage lands on the site's own data.
+>
+> We would like §6.4 to name a mitigation that does not depend on the model
+> resisting injection: the page enforces, in the tool implementation, (a) a
+> person-owned write scope (writes outside it are refused with a structured
+> error naming the allowed targets), (b) optimistic concurrency against the
+> person's own edits (writes over unread changes are refused with a diff), and
+> (c) page-owned cancellation for long-running writes. A live implementation
+> with these three, plus a fact/claim separation on the research writer, is at
+> https://minjikim89.github.io/redline/ (source and error shapes:
+> https://github.com/minjikim89/redline/blob/main/docs/pattern.md). Related: #282
+> (structured refusals), #262 (why tools are absent).

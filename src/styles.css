@@ -603,3 +603,38 @@ button:focus-visible,textarea:focus-visible{outline:2px solid var(--pink);outlin
 .st-env{margin:10px 0 0;font-size:11px;line-height:1.5;color:#7A8290}
 .st-env b{color:#3A4250;font-weight:600}
 .st-env code{font:500 10.5px ui-monospace,Menlo,monospace;color:#5B6472}
+
+.st-sub{margin:4px 0 0;font-size:12px;line-height:1.45;color:#7A8290}
+
+/* ================= narrow windows =================
+   A judge in the ChatGPT desktop app sees this beside a chat, at 700–1000px.
+   The gutters that hold margin notes were fixed at 252px each side, which
+   left a 200px artboard at 900px and none at all at 700px. Below 1100px the
+   gutters give way and notes overlap the artboard's edges instead. */
+@media (max-width:1100px){
+  .stage{padding-left:clamp(12px,3vw,40px);padding-right:clamp(12px,3vw,40px)}
+  .stage.has-notes{padding-left:clamp(24px,8vw,120px);padding-right:clamp(24px,8vw,120px)}
+}
+@media (max-width:900px){
+  .app{grid-template-columns:156px 1fr}
+  .app.with-insp{grid-template-columns:156px 1fr 220px}
+  .rail{padding:12px 8px}
+  .stage.has-notes{padding-left:16px;padding-right:16px}
+  .mcp-l{display:none}
+  .scribble{width:200px}
+}
+@media (max-width:640px){
+  .app{grid-template-columns:1fr}
+  .app.with-insp{grid-template-columns:1fr}
+  .rail{display:none}
+  .stage{padding:8px}
+  .stage.has-notes{padding-left:8px;padding-right:8px}
+}
+
+/* Prompts a person can hand to their agent, one click to copy. */
+.prompts{margin-top:8px;display:flex;flex-direction:column;gap:4px}
+.prompts-h{font:600 8.5px 'IBM Plex Sans';letter-spacing:.1em;text-transform:uppercase;color:#6E8A79}
+.prompts button{text-align:left;font:500 10.5px/1.35 'IBM Plex Sans';color:#2E5A44;
+  background:#fff;border:1px solid #CFE3D6;border-radius:6px;padding:4px 7px;cursor:pointer}
+.prompts button:hover{background:#F2FAF5}
+.prompts button.copied{background:#DFF3E7;border-color:#9FCDB3}

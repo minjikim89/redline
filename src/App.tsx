@@ -11,6 +11,13 @@ import * as store from './annotations/store';
 import { advertisedTools, liveTools, webmcpSupported } from './webmcp/tools';
 import { buildScript, runScript } from './annotations/replay';
 
+/** What a person might say to an agent that has this page open. */
+const PROMPTS = [
+  'Open the sample deck and work the open notes.',
+  'Make the source lines consistent across the chart slides.',
+  'Re-read slide 4 — I just changed its headline — then finish the fix note.',
+];
+
 /** Outlines the region an agent flagged, inside the artboard so it scales with it. */
 function ConflictRing({ elementId }: { elementId: string }) {
   const [box, setBox] = useState<{ x: number; y: number; w: number; h: number } | null>(null);
@@ -49,6 +56,7 @@ export default function App() {
   const [saying, setSaying] = useState<string | null>(null);
   const [confirmClear, setConfirmClear] = useState(false);
   const [cfDraft, setCfDraft] = useState<string | null>(null);
+  const [copied, setCopied] = useState<string | null>(null);
   const replayCtl = useRef<AbortController | null>(null);
 
   const fitRef = useRef<HTMLDivElement>(null);
@@ -322,6 +330,17 @@ export default function App() {
               : supported ? `WebMCP live · ${tools.length} tools` : 'WebMCP unavailable'}
           </div>
           {supported && <div className="mcp-l">{tools.join(' · ')}</div>}
+          {supported && (
+            <div className="prompts">
+              <div className="prompts-h">ask your agent · click to copy</div>
+              {PROMPTS.map(p => (
+                <button key={p} className={copied === p ? 'copied' : ''}
+                  onClick={() => { navigator.clipboard?.writeText(p).catch(() => { /* fine */ }); setCopied(p); setTimeout(() => setCopied(null), 1200); }}>
+                  {copied === p ? 'copied' : p}
+                </button>
+              ))}
+            </div>
+          )}
           {supported === false && (
             <>
               <div className="mcp-l">

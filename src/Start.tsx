@@ -58,7 +58,8 @@ export function Start({ onEnter }: { onEnter: () => void }) {
       <div className="start-card">
         <header>
           <strong>Redline</strong>
-          <p>A deck you and your agent both have hands in.</p>
+          <p>The agent may correct a fact. It may not rewrite an argument.</p>
+          <p className="st-sub">A permission boundary for agentic editing — a slide deck is the reference implementation.</p>
         </header>
 
         {restored ? (

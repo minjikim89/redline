@@ -143,7 +143,7 @@ writes outside the marked slides come back `OUT_OF_SCOPE`, stated up front by
 `list_slides`. Every error is `{ok:false, error:{code, message, …recovery},
 retrySafe}`. Read tools fit their lists to Chrome's 1.5K output budget.
 
-**Tests.** `npm test` runs 156: importer edge cases, the store's history and queue,
+**Tests.** `npm test` runs 159: importer edge cases, the store's history and queue,
 revisions, validation, every tool including cancellation from both sides, and the
 export→import round trip. `e2e/scenarios.mjs` drives real Chrome over CDP. `npm run
 evals` runs the WebMCP evals smoke suite against the live tools.

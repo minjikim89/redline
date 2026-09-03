@@ -9,7 +9,7 @@
     "lint": "oxlint",
     "preview": "vite preview",
     "check:data": "node scripts/check-placeholders.mjs",
-    "evals": "webmcp-evals smoke -u http://localhost:5180/?deck=1 -e evals/redline.json -v",
+    "evals": "webmcp-evals smoke -u http://localhost:5180/?deck=1 -e evals/redline.json --chrome-channel chrome -v",
     "test": "vitest run",
     "test:watch": "vitest"
   },

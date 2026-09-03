@@ -31,7 +31,7 @@ INVALID_INPUT  every call is validated in code — the browser does not check
                inputSchema (spec issue #92).
 contradicts    a verified figure that undercuts a claim flags it; the claim is not rewritten.
 ■ stop sweep   a batch edit is stoppable from the page, and the agent still learns what landed.
-Lighthouse Agentic Browsing 1.00 · 156 unit tests · CDP browser checks · evals smoke 7/7 · llms.txt.
+Lighthouse Agentic Browsing 1.00 · 159 unit tests · CDP browser checks · evals smoke 7/7 · llms.txt.
 Created during the submission period; full history from 2026-08-31.
 ```
 
@@ -316,8 +316,8 @@ Requires **Node 22.22+** (`.nvmrc` is set; the test runner's jsdom needs it).
 ```bash
 npm install
 npm run dev        # http://localhost:5180 — localhost is a secure context; file:// is not
-npm test           # 156 unit tests: importer, store, revisions, validation, tools, round trip
-npm run evals      # webmcp-evals smoke against the dev server: no API key needed (7/7 steps, every call ok:true)
+npm test           # 159 unit tests: importer, store, revisions, validation, tools, round trip
+npm run evals      # webmcp-evals smoke against the dev server (uses installed Google Chrome; no API key)
 npm run check:data # refuses to ship unsourced figures
 ```
 

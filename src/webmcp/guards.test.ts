@@ -189,3 +189,32 @@ describe('tools follow the page: nothing to review until a deck is open', () => 
     expect(r.error.available).toEqual(['sample']);
   });
 });
+
+/* A tool that is not registered should explain itself through one that is
+   (spec issue #262): which tool, why it is absent, and what brings it back. */
+describe('list_slides reports the conditional tools that are not registered', () => {
+  it('says nothing while every kind of note is open', async () => {
+    const r = await callable.list_slides({});
+    expect(r.unavailableTools).toBeUndefined();
+  });
+
+  it('names the missing tool, the reason, and the remedy once a kind closes', async () => {
+    const pie = store.openAnnotations().find(a => a.kind === 'visualize')!;
+    store.resolveAnnotation(pie.id);
+    const r = await callable.list_slides({});
+    expect(r.unavailableTools).toEqual([{
+      name: 'set_chart_form',
+      because: 'no visualize note is open',
+      how: 'circle a chart and mark the note visualize',
+    }]);
+    expect(JSON.stringify(r).length).toBeLessThanOrEqual(1500);
+  });
+
+  it('lists all three when the queue is empty, still inside the output budget', async () => {
+    for (const a of store.openAnnotations()) store.resolveAnnotation(a.id);
+    const r = await callable.list_slides({});
+    expect(r.unavailableTools.map((t: any) => t.name).sort())
+      .toEqual(['attach_research', 'set_chart_form', 'unify_across_slides']);
+    expect(JSON.stringify(r).length).toBeLessThanOrEqual(1500);
+  });
+});

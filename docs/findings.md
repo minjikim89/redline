@@ -160,7 +160,7 @@ re-sync, and re-syncs once they return.
 | [#262](https://github.com/webmachinelearning/webmcp/issues/262) | context is lost when tools appear or disappear | `list_slides` reports `unavailableTools` — which conditional tools are not registered right now, why, and what the person can do to bring them back |
 | [#278](https://github.com/webmachinelearning/webmcp/issues/278) | `executeTool` argument encoding | measured: Chrome 152 accepts only a JSON string (§5) |
 | [#92](https://github.com/webmachinelearning/webmcp/issues/92) | who owns validation | the page does (§1) |
-| [#248](https://github.com/webmachinelearning/webmcp/issues/248) (closed) | in-flight executions after unregistration | still fails in Chrome 152; page-side workaround (§8) |
+| [#248](https://github.com/webmachinelearning/webmcp/pull/248) (merged 2026-08-19) | in-flight executions after unregistration | spec fixed; still fails in Chrome 152, page-side workaround (§8) |
 
 ### Comment drafted for #282
 

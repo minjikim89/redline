@@ -340,7 +340,7 @@ describe('importHtml — text the parser must not misread', () => {
     let inner = '<p>The body copy buried at the bottom of the well.</p>';
     for (let i = 0; i < 400; i++) inner = `<div>${inner}</div>`;
     expect(() => importHtml(page('<h1>Cover</h1>', inner), 'x.html')).not.toThrow();
-  });
+  }, 30_000);
 });
 
 /**

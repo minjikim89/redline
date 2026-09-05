@@ -2,6 +2,8 @@
 
 **A slide deck you and your agent both have hands in — with one rule: the agent may correct a fact, but it may not rewrite an argument.**
 
+![Slide 8 of the sample deck: the HYBE panel circled by hand, with a research note pinned beside it asking for current figures](docs/hero.png)
+
 Every AI deck tool can *generate*. None of them can *edit with you*. The moment you
 fix a slide by hand, the model goes blind — it holds a copy of what it produced, not
 what is on your screen — so "make the rest match" regenerates from stale memory and
@@ -32,7 +34,7 @@ INVALID_INPUT  every call is validated in code — the browser does not check
 contradicts    a verified figure that undercuts a claim flags it; the claim is not rewritten.
 ■ stop sweep   a batch edit is stoppable from the page, and the agent still learns what landed.
 Lighthouse Agentic Browsing 1.00 · 159 unit tests · CDP browser checks · evals smoke 7/7 · llms.txt.
-Created during the submission period; full history from 2026-08-31.
+Built from 2026-08-31; full history in git.
 ```
 
 ---
@@ -222,6 +224,14 @@ that slide's headline. On this page it can, because the deck and the tools share
 address space. The tool will not rewrite the claim. **A number is a fact and an
 argument is a position; the agent is allowed to correct the first and only allowed
 to question the second.**
+
+The case that made this concrete was not staged. A note on slide 8 said the HYBE
+figures were a year behind. The agent read the queue, opened the actual DART
+filing, and came back with H1 2026: ₩285.3B revenue and ₩13.5B operating
+*profit*. The 2024 operating loss the slide rested on had reversed, which meant
+the slide's own headline, *"Subscription Pays, Commerce Doesn't"*, no longer
+followed from its figures. The agent wrote the sourced figure, flagged the claim
+it undercut, and stopped. Rewriting that headline was never its call.
 
 ### Every call is visible
 

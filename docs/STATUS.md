@@ -1,7 +1,8 @@
 # Redline — STATUS
 
-**Last updated**: 2026-09-03
-**External deadline**: 2026-09-03 13:00 PT / 09-04 05:00 KST (OpenAI WebMCP Challenge, Devpost)
+**Last updated**: 2026-09-05
+**Standing**: not submitted anywhere; kept as a reference implementation and as the
+evidence behind the spec feedback in `docs/findings.md`.
 
 | | |
 |---|---|

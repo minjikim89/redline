@@ -35,7 +35,7 @@ on, 0/10, at no cost to task completion. The hand-typed words are replaced in bo
 arms because the task is to rewrite that field; the guard's promise is "not
 unseen", and the raw results say so explicitly. A scripted agent that follows an injected "rewrite every headline"
 instruction rewrote 8 of 9 unmarked slides with the guards off and 0 of 9 with
-them on. Table in `evals/results/guardrails-latest.md`. This is the
+them on. Tables in `evals/results/guardrails-gpt-4.1.md` and `evals/results/guardrails-gpt-5.4.md`. This is the
 "behavioral contract" §6.3.2 says is missing — expressed as structured refusals
 that a host can surface uniformly. Proposed as a §6.4 addition below (draft issue 3).
 

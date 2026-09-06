@@ -1,6 +1,6 @@
 # Redline — STATUS
 
-**Last updated**: 2026-09-05
+**Last updated**: 2026-09-06
 **Standing**: not submitted anywhere; kept as a reference implementation and as the
 evidence behind the spec feedback in `docs/findings.md`.
 
@@ -40,7 +40,7 @@ rewrite an argument.
    README rewritten with the contradicts framing, the corrected comparison table,
    and a prompt-injection section; `docs/findings.md` and `docs/pattern.md` added.
 
-## Verify before submitting
+## Smoke check, by hand
 
 - ChatGPT desktop browser: on the entry screen the address bar shows **1** site
   tool; after opening the sample, **11**; resolve the visualize note → **10**.
@@ -48,6 +48,33 @@ rewrite an argument.
   runs; the agent should report what landed.
 - Retype a headline by hand after the agent has read the slide, then ask it to
   edit that slide: it must re-read first (`STALE_READ`).
+
+## Spec feedback filed upstream (2026-09-06)
+
+All of `docs/findings.md` is now on the record in `webmachinelearning/webmcp`.
+
+| | |
+|---|---|
+| [#298](https://github.com/webmachinelearning/webmcp/issues/298) | §6.4: page-enforced write boundaries as a mitigation for agent over-reach (carries the guardrail eval table) |
+| [#299](https://github.com/webmachinelearning/webmcp/issues/299) | Let a tool deliver a final result on caller abort |
+| [#300](https://github.com/webmachinelearning/webmcp/issues/300) | Clarify that unregistration must not fail an in-flight execution |
+| [#282 comment](https://github.com/webmachinelearning/webmcp/issues/282#issuecomment-5556231683) | the two-layer refusal envelope this page returns |
+| [#262 comment](https://github.com/webmachinelearning/webmcp/issues/262#issuecomment-5556231767) | `unavailableTools`: naming the tools that are absent, and why |
+| [#278 comment](https://github.com/webmachinelearning/webmcp/issues/278#issuecomment-5556231850) | Chrome 152 accepts only a JSON string, against a spec that says object |
+
+#298 cites [#288](https://github.com/webmachinelearning/webmcp/issues/288) as the limit
+of what it proposes: guards in a tool implementation bind the tool path only, so a user
+agent that also drives the page can write around them. #96 (agent identity and granted
+scope) is complementary, not the same mechanism.
+
+## Open, and deliberately not done yet
+
+- **Archive this repo** once the issue discussion settles. Held open on purpose: the
+  three issues argue from this implementation, and an archived banner above that
+  argument reads as abandoned. Nothing here needs maintenance in the meantime.
+- **Join the Web Machine Learning CG** if #298 moves toward spec text. `CONTRIBUTING.md`
+  gates *substantive contributions (pull request)* on CG membership under the W3C CLA;
+  issues and comments are not gated, spec text would be.
 
 ## Deferred, with reasons
 
